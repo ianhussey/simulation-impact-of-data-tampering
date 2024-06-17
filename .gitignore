@@ -1,3 +1,5 @@
 
 *.DS_Store
 *.Rhistory
+data/simulation_condition_switching.rds
+data/simulation_unwarranted_data_exclusion.rds
