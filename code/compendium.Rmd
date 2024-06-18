@@ -349,21 +349,30 @@ if(file.exists("../data/simulation_condition_switching.rds")){
     smallest_intervention <- data |>
       filter(condition == "intervention") |>
       arrange(score) |>
-      slice_head(n = n_participants_swapped_per_condition)
+      slice_head(n = n_participants_swapped_per_condition) |>
+      pull(rowname)
     
     # identify the N largest scores in the control group
     largest_control <- data |>
       filter(condition == "control") |>
       arrange(desc(score)) |>
-      slice_head(n = n_participants_swapped_per_condition)
+      slice_head(n = n_participants_swapped_per_condition) |>
+      pull(rowname)
     
-    # swap conditions: smallest intervention scores get 'control', largest control scores get 'intervention'
-    data$condition[data$rowname %in% smallest_intervention$rowname] <- "control"
-    data$condition[data$rowname %in% largest_control$rowname] <- "intervention"
-    
+    # swap conditions: smallest intervention scores get 'control', largest control scores get 'intervention' and
     # set 'altered' to TRUE for these rows
-    altered_indexes <- c(smallest_intervention$rowname, largest_control$rowname)
-    data$altered[data$rowname %in% altered_indexes] <- TRUE
+    data <- data |>
+      mutate(
+        condition = case_when(
+          rowname %in% smallest_intervention ~ "control",
+          rowname %in% largest_control ~ "intervention",
+          TRUE ~ condition
+          ),
+        altered = case_when(
+          rowname %in% c(smallest_intervention, largest_control) ~ TRUE,
+          TRUE ~ altered
+          )
+        )
     
     # remove the rowname column which isn't needed
     data <- data %>%
