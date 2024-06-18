@@ -3,3 +3,4 @@
 *.Rhistory
 data/simulation_condition_switching.rds
 data/simulation_unwarranted_data_exclusion.rds
+data/simulation_condition_swapping.rds

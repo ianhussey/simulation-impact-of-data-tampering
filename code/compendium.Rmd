@@ -307,15 +307,15 @@ ggsave(filename = "../communications/plots/exclusions.pdf",
 
 ```
 
-## Condition switching
+## Condition swapping (pairs of participants)
 
-Involves switching high-low pairs between conditions.
+Involves swapping the conditions of pairs of participants (maintaining balance)
 
 ```{r fig.height=25, fig.width=7}
 
-if(file.exists("../data/simulation_condition_switching.rds")){
+if(file.exists("../data/simulation_condition_swapping.rds")){
   
-  simulation_condition_switching <- read_rds("../data/simulation_condition_switching.rds")
+  simulation_condition_swapping <- read_rds("../data/simulation_condition_swapping.rds")
   
 } else {
   
@@ -415,7 +415,7 @@ if(file.exists("../data/simulation_condition_switching.rds")){
   
   
   # run simulation ----
-  simulation_condition_switching <- 
+  simulation_condition_swapping <- 
     # using the experiment parameters
     experiment_parameters_grid |>
     
@@ -438,7 +438,7 @@ if(file.exists("../data/simulation_condition_switching.rds")){
            analysis_results_altered_data = pmap(list(altered_data),
                                                 analyse_data))
   
-  write_rds(simulation_condition_switching, "../data/simulation_condition_switching.rds", compress = "gz")
+  write_rds(simulation_condition_swapping, "../data/simulation_condition_swapping.rds", compress = "gz")
   
 }
 
@@ -450,15 +450,15 @@ Illustrate swaps between conditions
 
 iteration <- 23
 
-ggplot(simulation_condition_switching$altered_data[[iteration]], aes(condition, score, color = altered)) +
+ggplot(simulation_condition_swapping$altered_data[[iteration]], aes(condition, score, color = altered)) +
   geom_point(position = position_jitter(width = 0.1)) +
   scale_color_viridis_d(begin = 0.3, end = 0.7) +
   theme_linedraw()
 
 bind_cols(
-  simulation_condition_switching$analysis_results_original_data[[iteration]] |>
+  simulation_condition_swapping$analysis_results_original_data[[iteration]] |>
     rename(p_original = p),
-  simulation_condition_switching$analysis_results_altered_data[[iteration]] |>
+  simulation_condition_swapping$analysis_results_altered_data[[iteration]] |>
     rename(p_altered = p),
 ) |>
   mutate_if(is.numeric, janitor::round_half_up, digits = 3) |>
@@ -472,7 +472,7 @@ Summarize results
 ```{r}
 
 # summarise simulation results over the iterations ----
-simulation_condition_switching_summary <- simulation_condition_switching |>
+simulation_condition_swapping_summary <- simulation_condition_swapping |>
   # convert `analysis_results` nested-data-frame column to regular columns in the df. in this case, the p value.
   unnest(analysis_results_original_data) |>
   rename(p_original_data = p) |>
@@ -484,18 +484,18 @@ simulation_condition_switching_summary <- simulation_condition_switching |>
             altered_data_false_positive_rate = mean(p_altered_data < .05)) |>
   ungroup()
 
-simulation_condition_switching_summary |>
+simulation_condition_swapping_summary |>
   mutate_if(is.numeric, janitor::round_half_up, digits = 2) |>
   kable() |>
   kable_classic(full_width = FALSE)
 
-simulation_condition_switching_summary |>
+simulation_condition_swapping_summary |>
   filter(n_participants_swapped_per_condition == 1) |>
   mutate_if(is.numeric, janitor::round_half_up, digits = 2) |>
   kable() |>
   kable_classic(full_width = FALSE)
 
-simulation_condition_switching_summary |>
+simulation_condition_swapping_summary |>
   filter(n_participants_swapped_per_condition == 5) |>
   mutate_if(is.numeric, janitor::round_half_up, digits = 2) |>
   kable() |>
@@ -509,7 +509,7 @@ simulation_condition_switching_summary |>
 
 library(simulateR)
 
-data_summary_ordered <- simulation_condition_switching_summary |>
+data_summary_ordered <- simulation_condition_swapping_summary |>
   # the outcome variable must be called `outcome`
   # eg the estimand of your simulation, whether the false positive rate, estimated effect size, etc.
   # replace `positive_rate` with
@@ -556,15 +556,15 @@ ggsave(filename = "../communications/plots/swapped.pdf",
 ```
 
 
-## Condition changing
+## Condition changing (individual participants)
 
-Involves changing most extreme values, but not switching per se.
+Involves changing the condition of a single participant (disribupting balance, but might be more ecologically valid)
 
 ```{r fig.height=25, fig.width=7}
 
 if(file.exists("../data/simulation_condition_changing.rds")){
   
-  simulation_condition_switching <- read_rds("../data/simulation_condition_changing.rds")
+  simulation_condition_changing <- read_rds("../data/simulation_condition_changing.rds")
   
 } else {
   
