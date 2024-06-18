@@ -257,6 +257,7 @@ simulation_unwarranted_data_exclusion_summary |>
 ```{r}
 
 library(simulateR)
+install.packages("simulateR")
 
 data_summary_ordered <- simulation_unwarranted_data_exclusion_summary |>
   # the outcome variable must be called `outcome`
@@ -304,6 +305,8 @@ ggsave(filename = "exclusions.pdf",
 ```
 
 ## Condition switching
+
+Involves switching high-low pairs between conditions.
 
 ```{r fig.height=25, fig.width=7}
 
@@ -541,6 +544,248 @@ p_multiverse
 #        height = 5)
 
 ggsave(filename = "swapped.pdf",
+       plot = p_multiverse,
+       device = "pdf",
+       width = 6,
+       height = 5)
+
+```
+
+
+## Condition changing
+
+Involves changing most extreme values, but not switching per se.
+
+```{r fig.height=25, fig.width=7}
+
+if(file.exists("../data/simulation_condition_changing.rds")){
+  
+  simulation_condition_switching <- read_rds("../data/simulation_condition_changing.rds")
+  
+} else {
+  
+  # set the seed ----
+  # for the pseudo random number generator to make results reproducible
+  set.seed(123)
+  
+  
+  # define data generating function ----
+  generate_data <- function(n_per_condition,
+                            mean_control,
+                            mean_intervention,
+                            sd_control,
+                            sd_intervention) {
+    
+    data_control <- 
+      tibble(condition = "control",
+             score = rnorm(n = n_per_condition, mean = mean_control, sd = sd_control))
+    
+    data_intervention <- 
+      tibble(condition = "intervention",
+             score = rnorm(n = n_per_condition, mean = mean_intervention, sd = sd_intervention))
+    
+    data <- bind_rows(data_control,
+                      data_intervention) 
+    
+    return(data)
+  }
+  
+  alter_data <- function(data, 
+                         n_participants_changed_in_control,
+                         n_participants_changed_in_intervention) {
+    
+    data <- data |>
+      rownames_to_column(var = "rowname") |>
+      mutate(altered = FALSE)
+    
+    # identify the N smallest scores in the intervention group
+    smallest_intervention <- data |>
+      filter(condition == "intervention") |>
+      arrange(score) |>
+      slice_head(n = n_participants_changed_in_intervention) |>
+      pull(rowname)
+    
+    # identify the N largest scores in the control group
+    largest_control <- data |>
+      filter(condition == "control") |>
+      arrange(desc(score)) |>
+      slice_head(n = n_participants_changed_in_control) |>
+      pull(rowname)
+    
+    # swap conditions: smallest intervention scores get 'control', largest control scores get 'intervention' and
+    # set 'altered' to TRUE for these rows
+    data <- data |>
+      mutate(
+        condition = case_when(
+          rowname %in% smallest_intervention ~ "control",
+          rowname %in% largest_control ~ "intervention",
+          TRUE ~ condition
+          ),
+        altered = case_when(
+          rowname %in% c(smallest_intervention, largest_control) ~ TRUE,
+          TRUE ~ altered
+          )
+        )
+    
+    # remove the rowname column which isn't needed
+    data <- data %>%
+      select(-rowname)
+    
+    return(data)
+  }
+  
+  
+  # define data analysis function ----
+  analyse_data <- function(data) {
+    
+    res_t_test <- t.test(formula = score ~ condition, 
+                         data = data,
+                         var.equal = TRUE,
+                         alternative = "two.sided")
+    
+    res <- tibble(p = res_t_test$p.value)
+    
+    return(res)
+  }
+  
+  
+  # define experiment parameters ----
+  experiment_parameters_grid <- expand_grid(
+    n_per_condition = c(10, seq(from = 25, to = 200, by = 25)),
+    mean_control = 0,
+    mean_intervention = 0, 
+    sd_control = 1,
+    sd_intervention = 1,
+    n_participants_changed_in_control = c(0:3),
+    n_participants_changed_in_intervention = c(0:3),
+    iteration = 1:500 # data are quite cumbersome due to many permutations; set to 500 for now
+  ) |>
+    filter(!(n_participants_changed_in_control == 0 & n_participants_changed_in_intervention == 0))
+  
+  
+  # run simulation ----
+  simulation_condition_changing <- 
+    # using the experiment parameters
+    experiment_parameters_grid |>
+    
+    # generate data using the data generating function and the parameters relevant to data generation
+    mutate(generated_data = pmap(list(n_per_condition,
+                                      mean_control,
+                                      mean_intervention,
+                                      sd_control,
+                                      sd_intervention),
+                                 generate_data)) |>
+    
+    # generate data using the data generating function and the parameters relevant to data generation
+    mutate(altered_data = pmap(list(generated_data, 
+                         n_participants_changed_in_control,
+                         n_participants_changed_in_intervention),
+                               alter_data)) |>
+    
+    # apply the analysis function to the generated data using the parameters relevant to analysis
+    mutate(analysis_results_original_data = pmap(list(generated_data),
+                                                 analyse_data),
+           analysis_results_altered_data = pmap(list(altered_data),
+                                                analyse_data))
+  
+  write_rds(simulation_condition_changing, "../data/simulation_condition_changing.rds", compress = "gz")
+  
+}
+
+```
+
+Illustrate swaps between conditions
+
+```{r}
+
+iteration <- 2300
+
+ggplot(simulation_condition_changing$altered_data[[iteration]], aes(condition, score, color = altered)) +
+  geom_point(position = position_jitter(width = 0.1)) +
+  scale_color_viridis_d(begin = 0.3, end = 0.7) +
+  theme_linedraw()
+
+bind_cols(
+  simulation_condition_changing$analysis_results_original_data[[iteration]] |>
+    rename(p_original = p),
+  simulation_condition_changing$analysis_results_altered_data[[iteration]] |>
+    rename(p_altered = p),
+) |>
+  mutate_if(is.numeric, janitor::round_half_up, digits = 3) |>
+  kable() |>
+  kable_classic(full_width = FALSE)
+
+```
+
+Summarize results 
+
+```{r}
+
+# summarise simulation results over the iterations ----
+simulation_condition_changing_summary <- simulation_condition_changing |>
+  # convert `analysis_results` nested-data-frame column to regular columns in the df. in this case, the p value.
+  unnest(analysis_results_original_data) |>
+  rename(p_original_data = p) |>
+  unnest(analysis_results_altered_data) |>
+  rename(p_altered_data = p) |>
+  # summarize across iterations
+  group_by(n_per_condition, n_participants_changed_in_control, n_participants_changed_in_intervention) |>
+  summarise(original_data_false_positive_rate = mean(p_original_data < .05),
+            altered_data_false_positive_rate = mean(p_altered_data < .05)) |>
+  ungroup()
+
+simulation_condition_changing_summary |>
+  mutate_if(is.numeric, janitor::round_half_up, digits = 2) |>
+  kable() |>
+  kable_classic(full_width = FALSE)
+
+
+```
+
+### Multiverse plot
+
+```{r}
+
+data_summary_ordered <- simulation_condition_changing_summary |>
+  # the outcome variable must be called `outcome`
+  # eg the estimand of your simulation, whether the false positive rate, estimated effect size, etc.
+  # replace `positive_rate` with
+  mutate(outcome = altered_data_false_positive_rate) |>
+  
+  # order the rows within the columns in the way you want them to appear left to right
+  arrange(desc(n_per_condition), n_participants_changed_in_control, n_participants_changed_in_intervention) |>
+  mutate(rank = row_number()) |>
+
+  # note that you might instead want to rank by the outcome variable rather than the conditions
+  # arrange(outcome) |>
+  # mutate(rank = row_number()) |>
+  
+  # select only the columns that you had multiple values for in the expand.grid() call in the simulation as well as `outcome` and `rank`
+  # rename them if necessary to plot nicely
+  mutate(n_participants_changed_in_control = as.factor(n_participants_changed_in_control),
+         n_participants_changed_in_intervention = as.factor(n_participants_changed_in_intervention),
+         n_per_condition = as.factor(n_per_condition)) |>
+  dplyr::select(`N from control changed` = n_participants_changed_in_control, 
+                `N from intervention changed` = n_participants_changed_in_intervention, 
+                `N participants` = n_per_condition,
+                outcome,
+                rank) 
+
+p_multiverse <- 
+  multiverse_plot(data_summary_ordered, 
+                  outcome_name = "Proportion p < .05",
+                  outcome_cutoff = 0.05)
+
+p_multiverse
+
+# save to disk
+# ggsave(filename = "p_multiverse.png",
+#        plot = p_multiverse,
+#        device = "png",
+#        width = 6,
+#        height = 5)
+
+ggsave(filename = "../communications/plots/changed.pdf",
        plot = p_multiverse,
        device = "pdf",
        width = 6,
