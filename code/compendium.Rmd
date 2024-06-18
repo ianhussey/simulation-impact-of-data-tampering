@@ -277,15 +277,18 @@ data_summary_ordered <- simulation_unwarranted_data_exclusion_summary |>
   # rename them if necessary to plot nicely
   mutate(n_participants_dropped_per_condition = as.factor(n_participants_dropped_per_condition),
          n_per_condition = as.factor(n_per_condition)) |>
-  dplyr::select(`N dropped` = n_participants_dropped_per_condition, 
-                `N participants` = n_per_condition,
+  dplyr::select(`N participants` = n_per_condition,
+                `N dropped` = n_participants_dropped_per_condition, 
                 outcome,
                 rank) 
+
+#data <- data_summary_ordered
 
 p_multiverse <- 
   multiverse_plot(data_summary_ordered, 
                   outcome_name = "Proportion p < .05",
-                  outcome_cutoff = 0.05)
+                  outcome_cutoff = 0.05,
+                  limits = c(0, 1))
 
 p_multiverse
 
@@ -296,7 +299,7 @@ p_multiverse
 #        width = 6,
 #        height = 5)
 
-ggsave(filename = "exclusions.pdf",
+ggsave(filename = "../communications/plots/exclusions.pdf",
        plot = p_multiverse,
        device = "pdf",
        width = 6,
@@ -524,15 +527,16 @@ data_summary_ordered <- simulation_condition_switching_summary |>
   # rename them if necessary to plot nicely
   mutate(n_participants_swapped_per_condition = as.factor(n_participants_swapped_per_condition),
          n_per_condition = as.factor(n_per_condition)) |>
-  dplyr::select(`N swapped` = n_participants_swapped_per_condition, 
-                `N participants` = n_per_condition,
+  dplyr::select(`N participants` = n_per_condition,
+                `N swapped` = n_participants_swapped_per_condition, 
                 outcome,
                 rank) 
 
 p_multiverse <- 
   multiverse_plot(data_summary_ordered, 
                   outcome_name = "Proportion p < .05",
-                  outcome_cutoff = 0.05)
+                  outcome_cutoff = 0.05,
+                  limits = c(0, 1))
 
 p_multiverse
 
@@ -543,7 +547,7 @@ p_multiverse
 #        width = 6,
 #        height = 5)
 
-ggsave(filename = "swapped.pdf",
+ggsave(filename = "../communications/plots/swapped.pdf",
        plot = p_multiverse,
        device = "pdf",
        width = 6,
