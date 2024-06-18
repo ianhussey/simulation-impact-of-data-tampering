@@ -662,7 +662,7 @@ if(file.exists("../data/simulation_condition_changing.rds")){
     sd_intervention = 1,
     n_participants_changed_in_control = c(0:3),
     n_participants_changed_in_intervention = c(0:3),
-    iteration = 1:500 # data are quite cumbersome due to many permutations; set to 500 for now
+    iteration = 1:1000 
   ) |>
     filter(!(n_participants_changed_in_control == 0 & n_participants_changed_in_intervention == 0))
   
