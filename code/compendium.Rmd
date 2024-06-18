@@ -595,8 +595,7 @@ if(file.exists("../data/simulation_condition_changing.rds")){
   }
   
   alter_data <- function(data, 
-                         n_participants_changed_in_control,
-                         n_participants_changed_in_intervention) {
+                         n_participants_changed) {
     
     data <- data |>
       rownames_to_column(var = "rowname") |>
@@ -606,14 +605,20 @@ if(file.exists("../data/simulation_condition_changing.rds")){
     smallest_intervention <- data |>
       filter(condition == "intervention") |>
       arrange(score) |>
-      slice_head(n = n_participants_changed_in_intervention) |>
-      pull(rowname)
+      slice_head(n = n_participants_changed)
     
     # identify the N largest scores in the control group
     largest_control <- data |>
       filter(condition == "control") |>
       arrange(desc(score)) |>
-      slice_head(n = n_participants_changed_in_control) |>
+      slice_head(n = n_participants_changed)
+    
+    # identify the N largest absolute scores from the selected control + intervention groups
+    largest_absolute_scores <- smallest_intervention |>
+      bind_rows(largest_control) |>
+      mutate(score = abs(score)) |>
+      arrange(desc(score)) |>
+      slice_head(n = n_participants_changed) |>
       pull(rowname)
     
     # swap conditions: smallest intervention scores get 'control', largest control scores get 'intervention' and
@@ -621,12 +626,12 @@ if(file.exists("../data/simulation_condition_changing.rds")){
     data <- data |>
       mutate(
         condition = case_when(
-          rowname %in% smallest_intervention ~ "control",
-          rowname %in% largest_control ~ "intervention",
+          rowname %in% largest_absolute_scores & condition == "intervention" ~ "control",
+          rowname %in% largest_control & condition == "control" ~ "intervention",
           TRUE ~ condition
           ),
         altered = case_when(
-          rowname %in% c(smallest_intervention, largest_control) ~ TRUE,
+          rowname %in% c(largest_absolute_scores) ~ TRUE,
           TRUE ~ altered
           )
         )
@@ -660,11 +665,9 @@ if(file.exists("../data/simulation_condition_changing.rds")){
     mean_intervention = 0, 
     sd_control = 1,
     sd_intervention = 1,
-    n_participants_changed_in_control = c(0:3),
-    n_participants_changed_in_intervention = c(0:3),
+    n_participants_changed = c(1:8),
     iteration = 1:1000 
-  ) |>
-    filter(!(n_participants_changed_in_control == 0 & n_participants_changed_in_intervention == 0))
+  )
   
   
   # run simulation ----
@@ -682,8 +685,7 @@ if(file.exists("../data/simulation_condition_changing.rds")){
     
     # generate data using the data generating function and the parameters relevant to data generation
     mutate(altered_data = pmap(list(generated_data, 
-                         n_participants_changed_in_control,
-                         n_participants_changed_in_intervention),
+                         n_participants_changed),
                                alter_data)) |>
     
     # apply the analysis function to the generated data using the parameters relevant to analysis
@@ -733,7 +735,7 @@ simulation_condition_changing_summary <- simulation_condition_changing |>
   unnest(analysis_results_altered_data) |>
   rename(p_altered_data = p) |>
   # summarize across iterations
-  group_by(n_per_condition, n_participants_changed_in_control, n_participants_changed_in_intervention) |>
+  group_by(n_per_condition, n_participants_changed) |>
   summarise(original_data_false_positive_rate = mean(p_original_data < .05),
             altered_data_false_positive_rate = mean(p_altered_data < .05)) |>
   ungroup()
@@ -757,7 +759,7 @@ data_summary_ordered <- simulation_condition_changing_summary |>
   mutate(outcome = altered_data_false_positive_rate) |>
   
   # order the rows within the columns in the way you want them to appear left to right
-  arrange(desc(n_per_condition), n_participants_changed_in_control, n_participants_changed_in_intervention) |>
+  arrange(desc(n_per_condition), n_participants_changed) |>
   mutate(rank = row_number()) |>
 
   # note that you might instead want to rank by the outcome variable rather than the conditions
@@ -766,11 +768,9 @@ data_summary_ordered <- simulation_condition_changing_summary |>
   
   # select only the columns that you had multiple values for in the expand.grid() call in the simulation as well as `outcome` and `rank`
   # rename them if necessary to plot nicely
-  mutate(n_participants_changed_in_control = as.factor(n_participants_changed_in_control),
-         n_participants_changed_in_intervention = as.factor(n_participants_changed_in_intervention),
+  mutate(n_participants_changed = as.factor(n_participants_changed),
          n_per_condition = as.factor(n_per_condition)) |>
-  dplyr::select(`N from control changed` = n_participants_changed_in_control, 
-                `N from intervention changed` = n_participants_changed_in_intervention, 
+  dplyr::select(`N changed` = n_participants_changed, 
                 `N participants` = n_per_condition,
                 outcome,
                 rank) 
