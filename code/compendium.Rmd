@@ -41,6 +41,9 @@ plan(multisession, workers = availableCores())
 
 options(scipen=999)
 
+dir.create("../data")
+dir.create("../communications/plots")
+
 ```
 
 # Ideas 
