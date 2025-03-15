@@ -1,0 +1,326 @@
+---
+title: "A compendium of data tampering and fabrication strategies"
+subtitle: "And the relative degree to which their minimal application inflates the false positive rate of an independent Student's t-test"
+author: "Ian Hussey"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  html_document:
+    code_folding: hide
+    highlight: haddock
+    theme: flatly
+    toc: yes
+    toc_float: yes
+---
+
+# Overview 
+
+## For types of tampering and fabrication
+
+- unwarranted dropping of cases, by N or proportion [done]
+- swapping conditions, by N or proportion [done]
+- changing/offsetting existing cases - changing sign [done] its a bit arbitrary but could illustrate the point
+- duplicating existing cases 
+- fabricating new cases - make this less arbitrary by asking how extreme would these cases need to be to produce significant results eg via dfstat
+
+- The simulations thus far use a fixed number of tampers and observe the false positive rate. What about an iterative strategy, where you keep tampering until you get significance, and quantify the necessary number of tampers?
+
+## For additional analyses
+
+- done for t tests but what about regression/correlation/mediation?
+- Above consider p-value false positive rate. Add effect size bias. 
+
+## Ethics and optics 
+
+Think about the ethics and options of distributing this weaponisable knowledge. Are there ways to hide detectability in it? 
+
+Add explicit discussion about how arbitrary the line is between p-hacking (scientifically naughty) and fabrication (legally actionable): 
+
+- excluding some participants is usually seen as p-hacking, even if these exclusions are totally unjustifiable and unprincipled, and seem to just be done to produce significant p values.
+- but if instead of clicking the delete key on those rows you instead type the other condition name in, suddenly its fabrication and you could lose your job over it.
+- the idea that one of these is common and one of these is rare, or one of these is merely iffy and the other is Clearly Unacceptable, risks underestimating the prevalence of the latter.
+- as usual, this boils down to a Trolly Problem: is deleting data really ethically different from making up data, if both serve the individuals' self-advancement at the expense of undermining the integrity of the research and the validity of the evidence? 
+
+## Realism of sims
+
+- Perhaps the sim that drops participants feels too obvious for a fraudster, because it can create an obvious trunction of otherwise normally distributed scores. However: 1) many detected cases of fraud have not been very elaborate or smart, and 2) this simulation is a proof of principle, there are of course more elaborate strategies possible which would seek to try to retain the plausibility of data (e.g., removing data beyond a threshold probabilistically).
+
+# Dependencies
+
+```{r, include=FALSE}
+
+knitr::opts_chunk$set(message = FALSE,
+                      warning = FALSE)
+
+```
+
+```{r}
+
+library(tidyr)
+library(dplyr)
+library(readr)
+library(tibble)
+library(purrr) 
+library(furrr)
+library(ggplot2)
+library(scales)
+library(knitr)
+library(kableExtra)
+library(janitor)
+library(ggtext)
+# devtools::install_github("ianhussey/simulateR")
+library(simulateR)
+
+# set up parallel processing
+plan(multisession, workers = availableCores())
+
+options(scipen=999)
+
+dir.create("../data")
+dir.create("../communications/plots")
+
+```
+
+# Simulations
+
+## Unwarranted data exclusion (dropping N)
+
+```{r}
+
+# define data generating function ----
+generate_data <- function(n_per_condition,
+                          mean_control,
+                          mean_intervention,
+                          sd_control,
+                          sd_intervention) {
+  
+  data_control <- 
+    tibble(condition = "control",
+           score = rnorm(n = n_per_condition, mean = mean_control, sd = sd_control))
+  
+  data_intervention <- 
+    tibble(condition = "intervention",
+           score = rnorm(n = n_per_condition, mean = mean_intervention, sd = sd_intervention))
+  
+  data <- bind_rows(data_control,
+                    data_intervention) 
+  
+  return(data)
+}
+
+# define data analysis function ----
+analyse_data <- function(data) {
+  
+  res_t_test <- t.test(formula = score ~ condition, 
+                       data = data,
+                       var.equal = TRUE,
+                       alternative = "two.sided")
+  
+  res <- tibble(p = res_t_test$p.value)
+  
+  return(res)
+}
+
+iterative_exclusion_once <- function(data) {
+  
+  # we only consider rows that have not yet been dropped (i.e., score not NA)
+  data_incl <- data |> filter(!is.na(score))
+  
+  # if either group has fewer than 2 participants, you can decide how to handle
+  # (for example, skip dropping or forcibly return data unchanged).
+  # For simplicity, let's handle the case but proceed only if both groups still have variance:
+  if(any(table(data_incl$condition) < 2)){
+    # not enough participants to meaningfully compute z-scores, so just return the same data
+    return(data)
+  }
+  
+  # compute z-scores for intervention
+  data_incl <- data_incl |>
+    group_by(condition) |>
+    mutate(
+      z_score_group = (score - mean(score)) / sd(score)
+    ) |>
+    ungroup()
+  
+  # smallest in intervention (lowest z-score)
+  smallest_in_intervention <- data_incl |>
+    filter(condition == "intervention") |>
+    slice_min(z_score_group, n = 1)
+  
+  # largest in control (highest z-score)
+  largest_in_control <- data_incl |>
+    filter(condition == "control") |>
+    slice_max(z_score_group, n = 1)
+  
+  # among those two, pick the single participant with the largest absolute z-score
+  to_drop <- bind_rows(smallest_in_intervention,
+                       largest_in_control) |>
+    slice_max(abs(z_score_group), n = 1)
+  
+  # apply the drop
+  data_dropped <- data |>
+    mutate(score = ifelse(row_number() %in% to_drop$row_number, NA, score))
+  
+  return(data_dropped)
+}
+
+
+run_iterative_exclusion_study <- function(n_per_condition,
+                                          mean_control,
+                                          mean_intervention,
+                                          sd_control,
+                                          sd_intervention,
+                                          max_drop_proportion = 0.5) {
+  
+  # 1) Generate data
+  data <- generate_data(n_per_condition = n_per_condition,
+                        mean_control = mean_control,
+                        mean_intervention = mean_intervention,
+                        sd_control = sd_control,
+                        sd_intervention = sd_intervention)
+  
+  # Store row_number so we can track drops more easily
+  data <- data |> mutate(row_number = row_number())
+  
+  # 2) Analyze once
+  test_res <- analyse_data(data)
+  p_val <- test_res$p[1]
+  
+  # If significant from the start, return 0
+  if(p_val < 0.05) {
+    return(0)
+  }
+  
+  # otherwise, attempt iterative exclusion
+  n_total <- nrow(data)
+  max_drops <- floor(max_drop_proportion * n_total)
+  drops_so_far <- 0
+  
+  # keep dropping while p >= 0.05, if we haven't hit max
+  while(p_val >= 0.05 && drops_so_far < max_drops) {
+    # drop exactly one new participant
+    data <- iterative_exclusion_once(data)
+    drops_so_far <- drops_so_far + 1
+    
+    # re-test
+    test_res <- analyse_data(data)
+    p_val <- test_res$p[1]
+  }
+  
+  # after the loop, either we reached significance or we used up 50% of the data
+  if(p_val < 0.05) {
+    return(drops_so_far)
+  } else {
+    # indicate never reached significance. Return the total drops, or you could return NA/Inf.
+    return(drops_so_far)
+  }
+}
+
+
+# Create a parameter grid
+experiment_parameters_grid_iterative <- expand_grid(
+  n_per_condition = c(10, seq(25, 200, by = 25)),
+  mean_control = 0,
+  mean_intervention = 0,
+  sd_control = 1,
+  sd_intervention = 1,
+  iteration = 1:1000
+)
+
+
+set.seed(123)
+
+simulation_iterative <- experiment_parameters_grid_iterative |>
+  mutate(drops_needed = future_pmap_dbl(list(n_per_condition, 
+                                             mean_control, 
+                                             mean_intervention, 
+                                             sd_control, 
+                                             sd_intervention),
+                                        run_iterative_exclusion_study,
+                                        max_drop_proportion = 0.5, 
+                                        .progress = TRUE,
+                                        .options = furrr_options(seed = TRUE)))
+
+```
+
+
+```{r}
+
+# Summarize results
+simulation_iterative_summary <- simulation_iterative |>
+  group_by(n_per_condition) |>
+  summarize(proportion_never_sig = mean(drops_needed == floor(0.5 * n_per_condition * 2)),
+            min = min(drops_needed[drops_needed < floor(0.5 * n_per_condition * 2)]),
+            max = max(drops_needed[drops_needed < floor(0.5 * n_per_condition * 2)]),
+            mean = mean(drops_needed[drops_needed < floor(0.5 * n_per_condition * 2)]),
+            sd = sd(drops_needed[drops_needed < floor(0.5 * n_per_condition * 2)]),
+            median = median(drops_needed[drops_needed < floor(0.5 * n_per_condition * 2)]),
+            mad = mad(drops_needed[drops_needed < floor(0.5 * n_per_condition * 2)])) |>
+  ungroup() |>
+  mutate(n_total = n_per_condition*2,
+         prop_min = min/n_total,
+         prop_max = max/n_total,
+         prop_mean = mean/n_total,
+         prop_sd = sd/n_total,
+         prop_median = median/n_total,
+         prop_mad = median/n_total) |>
+  relocate(n_total, .before = n_per_condition) |>
+  select(-n_per_condition)
+
+simulation_iterative_summary |>
+  mutate_if(is.numeric, janitor::round_half_up, digits = 2) |>
+  kable() |>
+  kable_classic(full_width = FALSE)
+
+```
+
+```{r}
+
+ggplot(simulation_iterative_summary, aes(x = proportion_never_sig)) +
+  geom_histogram(bins = 20) +
+  labs(title = "Distribution of samples that never reach significance",
+       x = "Number of Participants Dropped",
+       y = "Count") +
+  ylim(0, NA) +
+  facet_wrap(~ n_total)
+
+ggplot(simulation_iterative, aes(x = drops_needed)) +
+  geom_histogram(bins = 20) +
+  labs(title = "Distribution of drops needed to reach significance",
+       x = "Number of Participants Dropped",
+       y = "Count") +
+  ylim(0, NA) +
+  facet_wrap(~ n_per_condition) # N PER CONDITION NOT TOTAL N
+
+ggplot(simulation_iterative_summary, aes(n_total, median)) +
+  geom_point() +
+  geom_linerange(aes(ymin = median - mad, ymax = median + mad)) +
+  #geom_line() +
+  labs(title = "Number of drops needed to reach significance",
+       x = "Sample size (N)",
+       y = "Median drops ± MAD") +
+  theme_linedraw() +
+  scale_y_continuous(limits = c(0, NA), breaks = breaks_pretty(n = 8)) +
+  scale_x_continuous(breaks = c(10, seq(25, 200, by = 25))*2)
+
+ggplot(simulation_iterative_summary, aes(n_total, prop_median)) +
+  geom_point() +
+  geom_linerange(aes(ymin = prop_median - prop_mad, ymax = prop_median + prop_mad)) +
+  #geom_line() +
+  labs(title = "Proportion of sample needed to be dropped to reach significance",
+       x = "Sample size (N)",
+       y = "Median proportion dropped ± MAD") +
+  theme_linedraw() +
+  scale_y_continuous(labels = percent_format(), limits = c(0, NA), breaks = breaks_pretty(n = 8)) +
+  scale_x_continuous(breaks = c(10, seq(25, 200, by = 25))*2)
+
+```
+
+# Session info
+
+```{r}
+
+sessionInfo()
+
+```
+
+
