@@ -12,6 +12,40 @@ output:
     toc_float: yes
 ---
 
+# Overview 
+
+## For types of tampering and fabrication
+
+- unwarranted dropping of cases, by N or proportion [done]
+- swapping conditions, by N or proportion [done]
+- changing/offsetting existing cases - changing sign [done] its a bit arbitrary but could illustrate the point
+- duplicating existing cases 
+- fabricating new cases - make this less arbitrary by asking how extreme would these cases need to be to produce significant results eg via dfstat
+
+- The simulations thus far use a fixed number of tampers and observe the false positive rate. What about an iterative strategy, where you keep tampering until you get significance, and quantify the necessary number of tampers?
+
+## For additional analyses
+
+- done for t tests but what about regression/correlation/mediation?
+- Above consider p-value false positive rate. Add effect size bias. 
+
+## Ethics and optics 
+
+Think about the ethics and options of distributing this weaponisable knowledge. Are there ways to hide detectability in it? 
+
+Add explicit discussion about how arbitrary the line is between p-hacking (scientifically naughty) and fabrication (legally actionable): 
+
+- excluding some participants is usually seen as p-hacking, even if these exclusions are totally unjustifiable and unprincipled, and seem to just be done to produce significant p values.
+- but if instead of clicking the delete key on those rows you instead type the other condition name in, suddenly its fabrication and you could lose your job over it.
+- the idea that one of these is common and one of these is rare, or one of these is merely iffy and the other is Clearly Unacceptable, risks underestimating the prevalence of the latter.
+- as usual, this boils down to a Trolly Problem: is deleting data really ethically different from making up data, if both serve the individuals' self-advancement at the expense of undermining the integrity of the research and the validity of the evidence? 
+
+## Realism of sims
+
+- Perhaps the sim that drops participants feels too obvious for a fraudster, because it can create an obvious trunction of otherwise normally distributed scores. However: 1) many detected cases of fraud have not been very elaborate or smart, and 2) this simulation is a proof of principle, there are of course more elaborate strategies possible which would seek to try to retain the plausibility of data (e.g., removing data beyond a threshold probabilistically).
+
+# Dependencies
+
 ```{r, include=FALSE}
 
 knitr::opts_chunk$set(message = FALSE,
@@ -45,36 +79,6 @@ dir.create("../data")
 dir.create("../communications/plots")
 
 ```
-
-# Ideas 
-
-## For types of tampering and fabrication
-
-- unwarranted dropping of cases, by N or proportion [done]
-- swapping conditions, by N or proportion [done]
-- changing/offsetting existing cases - changing sign [done] its a bit arbitrary but could illustrate the point
-- duplicating existing cases 
-- fabricating new cases - make this less arbitrary by asking how extreme would these cases need to be to produce significant results eg via dfstat
-
-## For additional analyses
-
-- done for t tests but what about regression/correlation/mediation?
-- Above consider p-value false positive rate. Add effect size bias. 
-
-## Ethics and optics 
-
-Think about the ethics and options of distributing this weaponisable knowledge. Are there ways to hide detectability in it? 
-
-Add explicit discussion about how arbitrary the line is between p-hacking (scientifically naughty) and fabrication (legally actionable): 
-
-- excluding some participants is usually seen as p-hacking, even if these exclusions are totally unjustifiable and unprincipled, and seem to just be done to produce significant p values.
-- but if instead of clicking the delete key on those rows you instead type the other condition name in, suddenly its fabrication and you could lose your job over it.
-- the idea that one of these is common and one of these is rare, or one of these is merely iffy and the other is Clearly Unacceptable, risks underestimating the prevalence of the latter.
-- as usual, this boils down to a Trolly Problem: is deleting data really ethically different from making up data, if both serve the individuals' self-advancement at the expense of undermining the integrity of the research and the validity of the evidence? 
-
-## Realism of sims
-
-- Perhaps the sim that drops participants feels too obvious for a fraudster, because it can create an obvious trunction of otherwise normally distributed scores. However: 1) many detected cases of fraud have not been very elaborate or smart, and 2) this simulation is a proof of principle, there are of course more elaborate strategies possible which would seek to try to retain the plausibility of data (e.g., removing data beyond a threshold probabilistically).
 
 # Simulations
 
