@@ -242,6 +242,7 @@ simulation_iterative <- experiment_parameters_grid_iterative |>
 
 ```
 
+### summarize
 
 ```{r}
 
@@ -272,6 +273,8 @@ simulation_iterative_summary |>
   kable_classic(full_width = FALSE)
 
 ```
+
+### plot
 
 ```{r}
 
@@ -307,6 +310,198 @@ ggplot(simulation_iterative_summary, aes(n_total, prop_median)) +
   geom_linerange(aes(ymin = prop_median - prop_mad, ymax = prop_median + prop_mad)) +
   #geom_line() +
   labs(title = "Proportion of sample needed to be dropped to reach significance",
+       x = "Sample size (N)",
+       y = "Median proportion dropped ± MAD") +
+  theme_linedraw() +
+  scale_y_continuous(labels = percent_format(), limits = c(0, NA), breaks = breaks_pretty(n = 8)) +
+  scale_x_continuous(breaks = c(10, seq(25, 200, by = 25))*2)
+
+```
+
+
+## Condition swapping
+
+```{r}
+
+iterative_swap_once <- function(data) {
+  
+  # Recompute z-scores within each condition
+  data_incl <- data |> 
+    group_by(condition) |>
+    mutate(z_score = (score - mean(score)) / sd(score)) |>
+    ungroup()
+  
+  # The smallest (lowest) in the Intervention group
+  smallest_in_intervention <- data_incl |>
+    filter(condition == "intervention") |>
+    slice_min(z_score, n = 1)
+  
+  # The largest (highest) in the Control group
+  largest_in_control <- data_incl |>
+    filter(condition == "control") |>
+    slice_max(z_score, n = 1)
+  
+  # If we can't find a valid pair (e.g., a group is down to 1 person or something similar),
+  # just return the data unchanged
+  if(nrow(smallest_in_intervention) < 1 || nrow(largest_in_control) < 1) {
+    return(data)
+  }
+  
+  # We'll swap their conditions
+  rows_to_swap <- c(smallest_in_intervention$row_id, largest_in_control$row_id)
+  
+  data_swapped <- data |>
+    mutate(condition = case_when(
+      row_id == smallest_in_intervention$row_id ~ "control",
+      row_id == largest_in_control$row_id ~ "intervention",
+      TRUE ~ condition
+    ))
+  
+  return(data_swapped)
+}
+
+
+run_iterative_swapping_study <- function(n_per_condition,
+                                         mean_control,
+                                         mean_intervention,
+                                         sd_control,
+                                         sd_intervention,
+                                         max_swap_proportion = 0.5) {
+  
+  # Generate data
+  data <- generate_data(n_per_condition,
+                        mean_control,
+                        mean_intervention,
+                        sd_control,
+                        sd_intervention)
+  
+  # Label rows so we can track them across swaps
+  data <- data |> mutate(row_id = row_number())
+  
+  # Initial test
+  res <- analyse_data(data)
+  p_val <- res$p[1]
+  
+  if(p_val < 0.05) {
+    # Already significant, no swaps needed
+    return(0)
+  }
+  
+  # Otherwise, iterative swap
+  n_total <- nrow(data)
+  # Because each "swap" moves *two* participants (1 from each group),
+  # let's define the maximum number of pairs we can swap
+  max_pairs_to_swap <- floor(max_swap_proportion * n_total / 2)
+  
+  swaps_so_far <- 0
+  
+  while(p_val >= 0.05 && swaps_so_far < max_pairs_to_swap) {
+    # perform one swap
+    data <- iterative_swap_once(data)
+    swaps_so_far <- swaps_so_far + 1
+    
+    # re-test
+    res <- analyse_data(data)
+    p_val <- res$p[1]
+  }
+  
+  # If at the end p_val < 0.05, return the number of swaps
+  # else we swapped as much as we could but never reached significance
+  return(swaps_so_far)
+}
+
+
+# Create parameter grid
+experiment_parameters_grid_iterative_swaps <- expand_grid(
+  n_per_condition = c(10, seq(from = 25, to = 200, by = 25)),
+  mean_control = 0,
+  mean_intervention = 0,
+  sd_control = 1,
+  sd_intervention = 1,
+  iteration = 1:1000
+)
+
+# Run the iterative approach for each row in the parameter grid
+set.seed(123)
+
+simulation_iterative_swaps <- experiment_parameters_grid_iterative_swaps |>
+  mutate(swaps_needed = future_pmap_dbl(list(n_per_condition, mean_control, mean_intervention, sd_control, sd_intervention),
+                                        run_iterative_swapping_study,
+                                        max_swap_proportion = 0.5,   # up to 50% of participants
+                                        .progress = TRUE,
+                                        .options = furrr_options(seed = TRUE)))
+
+
+```
+
+### summarize
+
+```{r}
+
+# Summarize results
+simulation_iterative_swaps_summary <- simulation_iterative_swaps |>
+  group_by(n_per_condition) |>
+  summarize(proportion_never_sig = mean(swaps_needed == floor(0.5 * n_per_condition * 2)),
+            min = min(swaps_needed[swaps_needed < floor(0.5 * n_per_condition * 2)]),
+            max = max(swaps_needed[swaps_needed < floor(0.5 * n_per_condition * 2)]),
+            mean = mean(swaps_needed[swaps_needed < floor(0.5 * n_per_condition * 2)]),
+            sd = sd(swaps_needed[swaps_needed < floor(0.5 * n_per_condition * 2)]),
+            median = median(swaps_needed[swaps_needed < floor(0.5 * n_per_condition * 2)]),
+            mad = mad(swaps_needed[swaps_needed < floor(0.5 * n_per_condition * 2)])) |>
+  ungroup() |>
+  mutate(n_total = n_per_condition*2,
+         prop_min = min/n_total,
+         prop_max = max/n_total,
+         prop_mean = mean/n_total,
+         prop_sd = sd/n_total,
+         prop_median = median/n_total,
+         prop_mad = median/n_total) |>
+  relocate(n_total, .before = n_per_condition) |>
+  select(-n_per_condition)
+
+simulation_iterative_swaps_summary |>
+  mutate_if(is.numeric, janitor::round_half_up, digits = 2) |>
+  kable() |>
+  kable_classic(full_width = FALSE)
+
+```
+
+### plot
+
+```{r}
+
+ggplot(simulation_iterative_swaps_summary, aes(x = proportion_never_sig)) +
+  geom_histogram(bins = 20) +
+  labs(title = "Distribution of samples that never reach significance",
+       x = "Number of Participants Dropped",
+       y = "Count") +
+  ylim(0, NA) +
+  facet_wrap(~ n_total)
+
+ggplot(simulation_iterative_swaps, aes(x = swaps_needed)) +
+  geom_histogram(bins = 10) +
+  labs(title = "Distribution of drops needed to reach significance",
+       x = "Number of Participants Dropped",
+       y = "Count") +
+  ylim(0, NA) +
+  facet_wrap(~ n_per_condition) # N PER CONDITION NOT TOTAL N
+
+ggplot(simulation_iterative_swaps_summary, aes(n_total, median)) +
+  geom_point() +
+  geom_linerange(aes(ymin = median - mad, ymax = median + mad)) +
+  #geom_line() +
+  labs(title = "Number of condition swaps needed to reach significance",
+       x = "Sample size (N)",
+       y = "Median drops ± MAD") +
+  theme_linedraw() +
+  scale_y_continuous(limits = c(0, NA), breaks = breaks_pretty(n = 8)) +
+  scale_x_continuous(breaks = c(10, seq(25, 200, by = 25))*2)
+
+ggplot(simulation_iterative_swaps_summary, aes(n_total, prop_median)) +
+  geom_point() +
+  geom_linerange(aes(ymin = prop_median - prop_mad, ymax = prop_median + prop_mad)) +
+  #geom_line() +
+  labs(title = "Proportion of sample needed to be condition-swapped to reach significance",
        x = "Sample size (N)",
        y = "Median proportion dropped ± MAD") +
   theme_linedraw() +
