@@ -1,0 +1,101 @@
+---
+title: "Nick Brown's tweet thread about condition switching as a tampering strategy"
+author: "Ian Hussey"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  html_document:
+    code_download: true
+    code_folding: hide
+    highlight: haddock
+    theme: flatly
+    toc: yes
+    toc_float: yes
+---
+
+# Sources
+
+Nick Brown's (2020) tweet thread on a simulation of condition swapping. 
+
+- Tweet thread: https://gist.github.com/sTeamTraen/39e2abd53ca280153f4b0926b1aae7f6
+- Github gist: https://x.com/sTeamTraen/status/1329203865649094656
+
+# Screenshot of tweet thread
+
+```{r out.width="70%"}
+
+knitr::include_graphics("images/screenshot_of_nick_browns_thread.png")
+
+```
+
+# Code from Nick's github gist
+
+[explanatory text is Nick's]
+
+This code simulates a fraudulent scientific experiment.
+
+First, we generate random data in two conditions with no real difference between the conditions.
+
+Then, we take the k subjects from each condition whose results are the "worst" for our fraudulent hypothesis, and swap them over.
+
+For example, let's say that the first group is a drug, and the second is a placebo, and the drug doesn't work.
+
+The outcome value is how long it takes people to recover from the disease.
+
+We want that number to be as low as possible for our drug and as high as possible for the placebo.
+
+So we identify the k (3, 5, whatever) people with the longest recovery time in the drug group, and move them to the placebo group.
+
+The we move the k people with the shortest recovery time in the placebo group, and move them to the drug group.
+
+What we find is that with 50 people in each group, swapping 3/5 people gives a p<.05 result 66%/96% of the time.
+
+```{r, include=FALSE}
+
+knitr::opts_chunk$set(message = FALSE,
+                      warning = FALSE)
+
+```
+
+```{r}
+
+set.seed(1)
+N <- 50     #sample size per condition
+k <- 3      #number of subjects to swap
+iterations <- 10000  #number of iterations
+
+trial <- function (N, k) {
+  d <- rnorm(N * 2, 0, 1)           #build random data
+  cond <- c(rep(0, N), rep(1, N))   #assign conditions at random 
+  df <- data.frame(cond, d)
+  tf <- t.test(df[cond==0,]$d, df[cond==1,]$d)
+  pf <- tf$p.value                  #t test when null hypothesis is true
+
+  dh <- df[order(cond, d),]         #sort random data by condition and outcome value
+  slice <- dh[1:k,]                 #save the k lowest numbers from condition 0
+  end <- (N * 2) - k + 1            #identify the bounds of the k highest numbers in condition 1
+  dh[1:k,] <- dh[end:(N * 2),]      #move the k highest numbers in condition 1 to condition 0
+  dh[end:(N * 2),] <- slice         #move the k lowest numbers from condition 0 to condition 1
+  th <- t.test(dh[cond==0,]$d, dh[cond==1,]$d)
+  ph <- th$p.value                  #t test after swapping k participants
+  
+  return(c(pf, ph))
+}
+
+sig0 <- 0
+sig1 <- 0
+for (i in 1:iterations) {
+  x <- trial(N, k)
+  if (x[1] <= .05) {
+    sig0 <- sig0 + 1
+  }
+  if (x[2] <= .05) {
+    sig1 <- sig1 + 1
+  }
+}
+
+cat("p values <= .05 with random data: ", sprintf("%.1f", sig0 * 100 / iterations), "%", "\n", sep="")
+cat("p values <= .05 after swapping ", k, " cases: ", sprintf("%.1f", sig1 * 100 / iterations), "%", "\n", sep="")
+
+```
+
+
