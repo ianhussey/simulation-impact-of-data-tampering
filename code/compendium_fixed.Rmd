@@ -12,6 +12,10 @@ output:
     toc_float: yes
 ---
 
+# TODO
+
+- the dropping and sign changing both alter N participants, whereas the condition swapping swaps N pairs of participants. Alter this to instead do N participants?
+
 # Overview 
 
 ## For types of tampering and fabrication
@@ -42,7 +46,7 @@ Add explicit discussion about how arbitrary the line is between p-hacking (scien
 
 ## Realism of sims
 
-- Perhaps the sim that drops participants feels too obvious for a fraudster, because it can create an obvious trunction of otherwise normally distributed scores. However: 1) many detected cases of fraud have not been very elaborate or smart, and 2) this simulation is a proof of principle, there are of course more elaborate strategies possible which would seek to try to retain the plausibility of data (e.g., removing data beyond a threshold probabilistically).
+- Perhaps the sim that drops participants feels too obvious for a fraudster, because it can create an obvious truncation of otherwise normally distributed scores. However: 1) many detected cases of fraud have not been very elaborate or smart, and 2) this simulation is a proof of principle, there are of course more elaborate strategies possible which would seek to try to retain the plausibility of data (e.g., removing data beyond a threshold probabilistically).
 
 # Dependencies
 
@@ -81,7 +85,7 @@ dir.create("../communications/plots")
 
 ```
 
-# Unwarranted data exclusion (dropping N)
+# 1a Unwarranted data exclusion (dropping N)
 
 Flexibility in data exclusions has been studied as a p-hacking strategy. However, the strategies considered are usually individually plausible (e.g., ±2 SD from the mean, etc.). Exclusions are sometimes less justifiable or entirely unjustifiable, such as 'qualitative' strategies that seem to remove data points that increase the apparent size of the difference in means between groups (REF: e.g., the response to the Beckers et al. verification report). 
 
@@ -181,8 +185,8 @@ experiment_parameters_grid <- expand_grid(
   sd_control = 1,
   sd_intervention = 1,
   #n_participants_dropped_per_condition = c(1, 2, 3, 4, 5),
-  n_participants_dropped = c(1, 2, 3, 4, 5),
-  iteration = 1:100
+  n_participants_dropped = 1:10,
+  iteration = 1:10000
 )
 
 if(file.exists("../data/simulation_fixed_exclusions_n.rds")){
@@ -336,9 +340,9 @@ simulation_fixed_exclusions_n_summary |>
 ```{r}
 
 p_fixed_exclusions_n <- ggplot(simulation_fixed_exclusions_n_summary, 
-       aes(proportion_dropped, 
-           altered_data_false_positive_rate, 
-           color = as.factor(n_per_condition*2))) + 
+                               aes(n_participants_dropped, 
+                                   altered_data_false_positive_rate, 
+                                   color = as.factor(n_per_condition*2))) + 
   geom_hline(yintercept = 0.05, linetype = "dotted") +
   geom_line() +
   #geom_smooth(method = "lm", alpha = 0.1) +
@@ -346,22 +350,22 @@ p_fixed_exclusions_n <- ggplot(simulation_fixed_exclusions_n_summary,
   scale_color_viridis_d(begin = 0.2, end = 0.9, direction = -1) +
   theme_linedraw() +
   labs(color = "N",
-       x = "Participants excluded",
+       x = "N participants excluded",
        y = "False positive rate") +
   scale_y_continuous(limits = c(0,1), breaks = c(0, 0.05, .1, .2, .3, .4, .5, .6, .7, .8, .9, 1)) +
-  scale_x_continuous(breaks = breaks_pretty(n = 8)) +
+  scale_x_continuous(breaks = breaks_pretty(n = 10)) +
   guides(color = guide_legend(reverse = TRUE))
 
 p_fixed_exclusions_n
 
-ggsave(filename = "../communications/plots/fixed_exclusions_n.pdf",
-       device = "pdf",
-       width = 6,
-       height = 5)
+# ggsave(filename = "../communications/plots/fixed_exclusions_n.pdf",
+#        device = "pdf",
+#        width = 6,
+#        height = 5)
 
 ```
 
-# Unwarranted data exclusion (dropping %)
+# 1b Unwarranted data exclusion (dropping %)
 
 This is similar to the last simulation but instead of excluding a fixed N of participants regardless of total sample size I exclude a fixed percentage of participants.
 
@@ -458,8 +462,8 @@ experiment_parameters_grid <- expand_grid(
   mean_intervention = 0, 
   sd_control = 1,
   sd_intervention = 1,
-  proportion_participants_dropped = c(.01, .05, .10, .15, .10, .15, .20, .25, .30, .35),
-  iteration = 1:100
+  proportion_participants_dropped = c(.01, .025, .05, .10, .15, .10, .15, .20, .25, .30, .35),
+  iteration = 1:10000
 )
 
 if(file.exists("../data/simulation_fixed_exclusions_percent.rds")){
@@ -616,37 +620,35 @@ simulation_fixed_exclusions_percent_summary |>
 ```{r}
 
 p_fixed_exclusions_percent <- ggplot(simulation_fixed_exclusions_percent_summary,
-       aes(proportion_participants_dropped, 
-           altered_data_false_positive_rate, 
-           color = as.factor(n_per_condition*2))) + 
+                                     aes(proportion_participants_dropped, 
+                                         altered_data_false_positive_rate, 
+                                         color = as.factor(n_per_condition*2))) + 
   geom_hline(yintercept = 0.05, linetype = "dotted") +
   geom_line() +
   geom_point() +
   scale_color_viridis_d(begin = 0.2, end = 0.9, direction = -1) +
   theme_linedraw() +
   labs(color = "N",
-       x = "Participants excluded",
+       x = "% participants excluded",
        y = "False positive rate") +
   scale_y_continuous(limits = c(0,1), breaks = c(0, 0.05, .1, .2, .3, .4, .5, .6, .7, .8, .9, 1)) +
-  scale_x_continuous(labels = percent_format(), breaks = breaks_pretty(n = 8)) +
+  scale_x_continuous(labels = percent_format(), breaks = c(.01, .025, .05, .10, .15, .20, .25, .30, .35)) +
   guides(color = guide_legend(reverse = TRUE))
 
 p_fixed_exclusions_percent
 
-ggsave(filename = "../communications/plots/fixed_exclude_percent.pdf",
-       device = "pdf",
-       width = 6,
-       height = 5)
+# ggsave(filename = "../communications/plots/fixed_exclude_percent.pdf",
+#        device = "pdf",
+#        width = 6,
+#        height = 5)
 
 ```
 
-# Condition swapping pairs of participants (N pairs)
-
-Brown (REF) and Chambers (REF) and others (medical fraud literature?) have observed that condition switching can boost false positive rates and effect sizes. However, this has not been examined systematically to the best of my knowledge. I do this here.
+# 2a Condition swapping participants (N participants)
 
 ## Simulation functions
 
-Involves swapping the conditions of pairs of participants (maintaining balance)
+Involves swapping the conditions of individual participants, but doing half of swaps from each group so as to retain group balance
 
 Note: the `alter_data()` function assumes simulated data uses mean_intervention >= mean_control
 
@@ -673,49 +675,43 @@ generate_data <- function(n_per_condition,
   return(data)
 }
 
-alter_data <- function(data, n_participants_swapped_per_condition) {
-  
+alter_data <- function(data, n_participants_swapped) {
   data <- data |>
     rownames_to_column(var = "rowname") |>
     mutate(altered = FALSE)
   
-  # compute z-scores within each condition
+  # Compute z-score within full sample
   data <- data |>
-    group_by(condition) |>
-    mutate(z_score = (score - mean(score, na.rm = TRUE)) / sd(score, na.rm = TRUE)) |>
-    ungroup()
+    mutate(z_score = (score - mean(score)) / sd(score))
+
+  # Split groupwise
+  control <- data |> filter(condition == "control")
+  intervention <- data |> filter(condition == "intervention")
   
-  # identify the N smallest scores in the intervention group
-  smallest_intervention <- data |>
-    filter(condition == "intervention") |>
-    arrange(z_score) |>
-    slice_head(n = n_participants_swapped_per_condition) |>
+  # Identify most extreme low scores in intervention group
+  to_swap_from_intervention <- intervention |>
+    arrange(z_score) |>  # lowest scores
+    slice_head(n = floor(n_participants_swapped / 2)) |>
     pull(rowname)
   
-  # identify the N largest scores in the control group
-  largest_control <- data |>
-    filter(condition == "control") |>
-    arrange(desc(z_score)) |>
-    slice_head(n = n_participants_swapped_per_condition) |>
+  # Identify most extreme high scores in control group
+  to_swap_from_control <- control |>
+    arrange(desc(z_score)) |>  # highest scores
+    slice_head(n = ceiling(n_participants_swapped / 2)) |>
     pull(rowname)
   
-  # swap conditions: smallest intervention scores get 'control', largest control scores get 'intervention' and
-  # set 'altered' to TRUE for these rows
+  swap_rows <- c(to_swap_from_control, to_swap_from_intervention)
+
+  # Apply swap
   data <- data |>
     mutate(
       condition = case_when(
-        rowname %in% smallest_intervention ~ "control",
-        rowname %in% largest_control ~ "intervention",
+        rowname %in% to_swap_from_control ~ "intervention",
+        rowname %in% to_swap_from_intervention ~ "control",
         TRUE ~ condition
       ),
-      altered = case_when(
-        rowname %in% c(smallest_intervention, largest_control) ~ TRUE,
-        TRUE ~ altered
-      )
-    )
-  
-  # remove the rowname column which isn't needed
-  data <- data %>%
+      altered = if_else(rowname %in% swap_rows, TRUE, FALSE)
+    ) |>
     select(-rowname, -z_score)
   
   return(data)
@@ -748,8 +744,8 @@ experiment_parameters_grid <- expand_grid(
   mean_intervention = 0, 
   sd_control = 1,
   sd_intervention = 1,
-  n_participants_swapped_per_condition = c(1, 2, 3, 4, 5, 6, 7),
-  iteration = 1:100
+  n_participants_swapped = 1:10,
+  iteration = 1:10000
 )
 
 if(file.exists("../data/simulation_fixed_swaps_n.rds")){
@@ -779,7 +775,7 @@ if(file.exists("../data/simulation_fixed_swaps_n.rds")){
     
     # generate data using the data generating function and the parameters relevant to data generation
     mutate(altered_data = future_pmap(list(generated_data,
-                                           n_participants_swapped_per_condition),
+                                           n_participants_swapped),
                                       alter_data,
                                       .progress = TRUE,
                                       .options = furrr_options(seed = TRUE))) |>
@@ -828,7 +824,7 @@ simulation_fixed_swaps_n_summary <- simulation_fixed_swaps_n |>
   unnest(analysis_results_altered_data) |>
   rename(p_altered_data = p) |>
   # summarize across iterations
-  group_by(n_per_condition, n_participants_swapped_per_condition) |>
+  group_by(n_per_condition, n_participants_swapped) |>
   summarize(original_data_false_positive_rate = mean(p_original_data < .05),
             altered_data_false_positive_rate = mean(p_altered_data < .05)) |>
   ungroup()
@@ -839,13 +835,13 @@ simulation_fixed_swaps_n_summary |>
   kable_classic(full_width = FALSE)
 
 # simulation_fixed_swaps_n_summary |>
-#   filter(n_participants_swapped_per_condition == 1) |>
+#   filter(n_participants_swapped == 1) |>
 #   mutate_if(is.numeric, janitor::round_half_up, digits = 2) |>
 #   kable() |>
 #   kable_classic(full_width = FALSE)
 # 
 # simulation_fixed_swaps_n_summary |>
-#   filter(n_participants_swapped_per_condition == 5) |>
+#   filter(n_participants_swapped == 5) |>
 #   mutate_if(is.numeric, janitor::round_half_up, digits = 2) |>
 #   kable() |>
 #   kable_classic(full_width = FALSE)
@@ -857,37 +853,37 @@ simulation_fixed_swaps_n_summary |>
 ```{r}
 
 p_fixed_swaps_n <- ggplot(simulation_fixed_swaps_n_summary,
-       aes(n_participants_swapped_per_condition, 
-           altered_data_false_positive_rate, 
-           color = as.factor(n_per_condition*2))) + 
+                          aes(n_participants_swapped, 
+                              altered_data_false_positive_rate, 
+                              color = as.factor(n_per_condition*2))) + 
   geom_hline(yintercept = 0.05, linetype = "dotted") +
   geom_line() +
   geom_point() +
   scale_color_viridis_d(begin = 0.2, end = 0.9, direction = -1) +
   theme_linedraw() +
   labs(color = "N",
-       x = "N pairs of participants swapped between conditions",
+       x = "N participants condition-swapped",
        y = "False positive rate") +
   scale_y_continuous(limits = c(0,1), breaks = c(0, 0.05, .1, .2, .3, .4, .5, .6, .7, .8, .9, 1)) +
-  scale_x_continuous(breaks = 1:8) 
-  #guides(color = guide_legend(reverse = TRUE))
+  scale_x_continuous(breaks = breaks_pretty(n = 10)) +
+  guides(color = guide_legend(reverse = TRUE))
 
 p_fixed_swaps_n
 
-ggsave(filename = "../communications/plots/fixed_swaps_n.pdf",
-       device = "pdf",
-       width = 6,
-       height = 5)
+# ggsave(filename = "../communications/plots/fixed_swaps_n.pdf",
+#        device = "pdf",
+#        width = 6,
+#        height = 5)
 
 ```
 
-# Condition swapping pairs of participants (% pairs)
+# 2b Condition swapping participants (% participants)
 
 This is similar to the last simulation but instead of excluding a fixed N of participants regardless of total sample size I exclude a fixed percentage of participants.
 
 ## Simulation functions
 
-Involves swapping the conditions of pairs of participants (maintaining balance)
+Involves swapping the conditions of individual participants, but doing half of swaps from each group so as to retain group balance
 
 Note: the `alter_data()` function assumes simulated data uses mean_intervention >= mean_control
 
@@ -914,49 +910,43 @@ generate_data <- function(n_per_condition,
   return(data)
 }
 
-alter_data <- function(data, n_participants_swapped_per_condition) {
-  
+alter_data <- function(data, n_participants_swapped) {
   data <- data |>
     rownames_to_column(var = "rowname") |>
     mutate(altered = FALSE)
   
-  # compute z-scores within each condition
+  # Compute z-score within full sample
   data <- data |>
-    group_by(condition) |>
-    mutate(z_score = (score - mean(score, na.rm = TRUE)) / sd(score, na.rm = TRUE)) |>
-    ungroup()
+    mutate(z_score = (score - mean(score)) / sd(score))
+
+  # Split groupwise
+  control <- data |> filter(condition == "control")
+  intervention <- data |> filter(condition == "intervention")
   
-  # identify the N smallest scores in the intervention group
-  smallest_intervention <- data |>
-    filter(condition == "intervention") |>
-    arrange(z_score) |>
-    slice_head(n = n_participants_swapped_per_condition) |>
+  # Identify most extreme low scores in intervention group
+  to_swap_from_intervention <- intervention |>
+    arrange(z_score) |>  # lowest scores
+    slice_head(n = floor(n_participants_swapped / 2)) |>
     pull(rowname)
   
-  # identify the N largest scores in the control group
-  largest_control <- data |>
-    filter(condition == "control") |>
-    arrange(desc(z_score)) |>
-    slice_head(n = n_participants_swapped_per_condition) |>
+  # Identify most extreme high scores in control group
+  to_swap_from_control <- control |>
+    arrange(desc(z_score)) |>  # highest scores
+    slice_head(n = ceiling(n_participants_swapped / 2)) |>
     pull(rowname)
   
-  # swap conditions: smallest intervention scores get 'control', largest control scores get 'intervention' and
-  # set 'altered' to TRUE for these rows
+  swap_rows <- c(to_swap_from_control, to_swap_from_intervention)
+
+  # Apply swap
   data <- data |>
     mutate(
       condition = case_when(
-        rowname %in% smallest_intervention ~ "control",
-        rowname %in% largest_control ~ "intervention",
+        rowname %in% to_swap_from_control ~ "intervention",
+        rowname %in% to_swap_from_intervention ~ "control",
         TRUE ~ condition
       ),
-      altered = case_when(
-        rowname %in% c(smallest_intervention, largest_control) ~ TRUE,
-        TRUE ~ altered
-      )
-    )
-  
-  # remove the rowname column which isn't needed
-  data <- data %>%
+      altered = if_else(rowname %in% swap_rows, TRUE, FALSE)
+    ) |>
     select(-rowname, -z_score)
   
   return(data)
@@ -989,8 +979,8 @@ experiment_parameters_grid <- expand_grid(
   mean_intervention = 0, 
   sd_control = 1,
   sd_intervention = 1,
-  proportion_participants_dropped = c(.01, .025, .05, .075, .10, .125, .15),
-  iteration = 1:100
+  proportion_participants_swapped = c(.01, .025, .05, .10, .15, .10, .15, .20, .25, .30, .35),
+  iteration = 1:10000
 )
 
 if(file.exists("../data/simulation_fixed_swaps_percent.rds")){
@@ -1018,11 +1008,11 @@ if(file.exists("../data/simulation_fixed_swaps_percent.rds")){
                                         .progress = TRUE,
                                         .options = furrr_options(seed = TRUE))) |>
     
-    mutate(n_participants_swapped_per_condition = janitor::round_half_up(proportion_participants_dropped * n_per_condition)) |>
+    mutate(n_participants_swapped = janitor::round_half_up(proportion_participants_swapped * n_per_condition * 2)) |>
     
     # generate data using the data generating function and the parameters relevant to data generation
     mutate(altered_data = future_pmap(list(generated_data,
-                                           n_participants_swapped_per_condition),
+                                           n_participants_swapped),
                                       alter_data,
                                       .progress = TRUE,
                                       .options = furrr_options(seed = TRUE))) |>
@@ -1071,7 +1061,7 @@ simulation_fixed_swaps_percent_summary <- simulation_fixed_swaps_percent |>
   unnest(analysis_results_altered_data) |>
   rename(p_altered_data = p) |>
   # summarize across iterations
-  group_by(n_per_condition, proportion_participants_dropped) |>
+  group_by(n_per_condition, proportion_participants_swapped) |>
   summarize(original_data_false_positive_rate = mean(p_original_data < .05),
             altered_data_false_positive_rate = mean(p_altered_data < .05)) |>
   ungroup()
@@ -1082,13 +1072,13 @@ simulation_fixed_swaps_percent_summary |>
   kable_classic(full_width = FALSE)
 
 # simulation_fixed_swaps_percent_summary |>
-#   filter(proportion_participants_dropped == .025) |>
+#   filter(proportion_participants_swapped == .025) |>
 #   mutate_if(is.numeric, janitor::round_half_up, digits = 2) |>
 #   kable() |>
 #   kable_classic(full_width = FALSE)
 # 
 # simulation_fixed_swaps_percent_summary |>
-#   filter(proportion_participants_dropped == .15) |>
+#   filter(proportion_participants_swapped == .15) |>
 #   mutate_if(is.numeric, janitor::round_half_up, digits = 2) |>
 #   kable() |>
 #   kable_classic(full_width = FALSE)
@@ -1100,31 +1090,31 @@ simulation_fixed_swaps_percent_summary |>
 ```{r}
 
 p_fixed_swaps_percent <- ggplot(simulation_fixed_swaps_percent_summary,
-       aes(proportion_participants_dropped, 
-           altered_data_false_positive_rate, 
-           color = as.factor(n_per_condition*2))) + 
+                                aes(proportion_participants_swapped, 
+                                    altered_data_false_positive_rate, 
+                                    color = as.factor(n_per_condition*2))) + 
   geom_hline(yintercept = 0.05, linetype = "dotted") +
   geom_line() +
   geom_point() +
   scale_color_viridis_d(begin = 0.2, end = 0.9, direction = -1) +
   theme_linedraw() +
   labs(color = "N",
-       x = "Pairs of participants swapped between conditions",
+       x = "% participants condition-swapped",
        y = "False positive rate") +
   scale_y_continuous(limits = c(0,1), breaks = c(0, 0.05, .1, .2, .3, .4, .5, .6, .7, .8, .9, 1)) +
-  scale_x_continuous(labels = percent_format(), breaks = c(.01, .025, .05, .075, .10, .125, .15)) +
+  scale_x_continuous(labels = percent_format(), breaks = c(.01, .025, .05, .10, .15, .20, .25, .30, .35)) +
   guides(color = guide_legend(reverse = TRUE))
 
 p_fixed_swaps_percent
 
-ggsave(filename = "../communications/plots/fixed_swaps_percent.pdf",
-       device = "pdf",
-       width = 6,
-       height = 5)
+# ggsave(filename = "../communications/plots/fixed_swaps_percent.pdf",
+#        device = "pdf",
+#        width = 6,
+#        height = 5)
 
 ```
 
-# Change sign (N)
+# 3a Change sign (N)
 
 Flexibility in data exclusions has been studied as a p-hacking strategy. However, the strategies considered are usually individually plausible (e.g., ±2 SD from the mean, etc.). Exclusions are sometimes less justifiable or entirely unjustifiable, such as 'qualitative' strategies that seem to remove data points that increase the apparent size of the difference in means between groups (REF: e.g., the response to the Beckers et al. verification report). 
 
@@ -1158,7 +1148,7 @@ generate_data <- function(n_per_condition,
 }
 
 
-alter_data <- function(data, n_participants_dropped) {
+alter_data <- function(data, n_participants_signchanged) {
   
   data <- data |>
     rownames_to_column(var = "rowname") |>
@@ -1170,7 +1160,7 @@ alter_data <- function(data, n_participants_dropped) {
     mutate(z_score = (score - mean(score)) / sd(score),
            abs_z_score = abs(z_score)) |>
     arrange(z_score) |> # assumes simulated data uses mean_intervention >= mean_control
-    slice_head(n = n_participants_dropped) # oversample n dropped
+    slice_head(n = n_participants_signchanged) # oversample n signchanged
   
   # identify the N largest scores in the control group
   largest_control <- data |>
@@ -1178,13 +1168,13 @@ alter_data <- function(data, n_participants_dropped) {
     mutate(z_score = score / sd(score),
            abs_z_score = abs(z_score)) |>
     arrange(desc(z_score)) |> # assumes simulated data uses mean_intervention >= mean_control
-    slice_head(n = n_participants_dropped) # oversample n dropped
+    slice_head(n = n_participants_signchanged) # oversample n signchanged
   
   extreme_scores <- 
     bind_rows(smallest_intervention, 
               largest_control) |>
     arrange(desc(abs_z_score)) |>
-    slice_head(n = n_participants_dropped) |> # correctly sample n dropped
+    slice_head(n = n_participants_signchanged) |> # correctly sample n signchanged
     pull(rowname)
   
   # set 'altered' to TRUE for these rows, and score_altered to NA
@@ -1223,8 +1213,8 @@ experiment_parameters_grid <- expand_grid(
   mean_intervention = 0, 
   sd_control = 1,
   sd_intervention = 1,
-  n_participants_tampered = c(1, 2, 3, 4, 5),
-  iteration = 1:100
+  n_participants_signchanged = 1:10,
+  iteration = 1:10000
 )
 
 if(file.exists("../data/simulation_fixed_changesigns_n.rds")){
@@ -1254,7 +1244,7 @@ if(file.exists("../data/simulation_fixed_changesigns_n.rds")){
     
     # generate data using the data generating function and the parameters relevant to data generation
     mutate(altered_data = future_pmap(list(generated_data,
-                                           n_participants_tampered),
+                                           n_participants_signchanged),
                                       alter_data,
                                       .progress = TRUE,
                                       .options = furrr_options(seed = TRUE))) |>
@@ -1293,7 +1283,7 @@ dat_illustrate <- simulation_fixed_changesigns_n |>
   rename(p_original = p) |>
   unnest(analysis_results_altered_data) |>
   rename(p_altered = p) |>
-  filter(n_participants_tampered == 1 &
+  filter(n_participants_signchanged == 1 &
            p_original > .05 & p_altered < .05) |>
   mutate(diff = p_original - p_altered) |>
   arrange(desc(diff))
@@ -1348,11 +1338,11 @@ simulation_fixed_changesigns_n_summary <- simulation_fixed_changesigns_n |>
   unnest(analysis_results_altered_data) |>
   rename(p_altered_data = p) |>
   # summarize across iterations
-  group_by(n_per_condition, n_participants_tampered) |>
+  group_by(n_per_condition, n_participants_signchanged) |>
   summarize(original_data_false_positive_rate = mean(p_original_data < .05),
             altered_data_false_positive_rate = mean(p_altered_data < .05)) |>
   ungroup() |>
-  mutate(proportion_tampered = n_participants_tampered/n_per_condition)
+  mutate(proportion_tampered = n_participants_signchanged/n_per_condition)
 
 simulation_fixed_changesigns_n_summary |>
   mutate_if(is.numeric, janitor::round_half_up, digits = 2) |>
@@ -1360,13 +1350,13 @@ simulation_fixed_changesigns_n_summary |>
   kable_classic(full_width = FALSE)
 
 # simulation_fixed_changesigns_n_summary |>
-#   filter(n_participants_tampered == 1) |>
+#   filter(n_participants_signchanged == 1) |>
 #   mutate_if(is.numeric, janitor::round_half_up, digits = 2) |>
 #   kable() |>
 #   kable_classic(full_width = FALSE)
 # 
 # simulation_fixed_changesigns_n_summary |>
-#   filter(n_participants_tampered == 5) |>
+#   filter(n_participants_signchanged == 5) |>
 #   mutate_if(is.numeric, janitor::round_half_up, digits = 2) |>
 #   kable() |>
 #   kable_classic(full_width = FALSE)
@@ -1378,9 +1368,9 @@ simulation_fixed_changesigns_n_summary |>
 ```{r}
 
 p_fixed_changesigns_n <- ggplot(simulation_fixed_changesigns_n_summary, 
-       aes(proportion_tampered, 
-           altered_data_false_positive_rate, 
-           color = as.factor(n_per_condition*2))) + 
+                                aes(n_participants_signchanged, 
+                                    altered_data_false_positive_rate, 
+                                    color = as.factor(n_per_condition*2))) + 
   geom_hline(yintercept = 0.05, linetype = "dotted") +
   geom_line() +
   #geom_smooth(method = "lm", alpha = 0.1) +
@@ -1388,22 +1378,22 @@ p_fixed_changesigns_n <- ggplot(simulation_fixed_changesigns_n_summary,
   scale_color_viridis_d(begin = 0.2, end = 0.9, direction = -1) +
   theme_linedraw() +
   labs(color = "N",
-       x = "Participants tampered",
+       x = "N participants sign-changed",
        y = "False positive rate") +
   scale_y_continuous(limits = c(0,1), breaks = c(0, 0.05, .1, .2, .3, .4, .5, .6, .7, .8, .9, 1)) +
-  scale_x_continuous(labels = percent_format(), breaks = breaks_pretty(n = 8)) +
+  scale_x_continuous(breaks = 1:10) +
   guides(color = guide_legend(reverse = TRUE))
 
 p_fixed_changesigns_n
 
-ggsave(filename = "../communications/plots/fixed_changesigns_n.pdf",
-       device = "pdf",
-       width = 6,
-       height = 5)
+# ggsave(filename = "../communications/plots/fixed_changesigns_n.pdf",
+#        device = "pdf",
+#        width = 6,
+#        height = 5)
 
 ```
 
-# Change sign (%)
+# 3b Change sign (%)
 
 This is similar to the last simulation but instead of excluding a fixed N of participants regardless of total sample size I exclude a fixed percentage of participants.
 
@@ -1435,7 +1425,7 @@ generate_data <- function(n_per_condition,
 }
 
 
-alter_data <- function(data, n_participants_tampered) {
+alter_data <- function(data, n_participants_signchanged) {
   
   data <- data |>
     rownames_to_column(var = "rowname") |>
@@ -1447,7 +1437,7 @@ alter_data <- function(data, n_participants_tampered) {
     mutate(z_score = score / sd(score),
            abs_z_score = abs(z_score)) |>
     arrange(z_score) |> # assumes simulated data uses mean_intervention >= mean_control
-    slice_head(n = n_participants_tampered) # oversample n dropped
+    slice_head(n = n_participants_signchanged) # oversample n signchanged
   
   # identify the N largest scores in the control group
   largest_control <- data |>
@@ -1455,13 +1445,13 @@ alter_data <- function(data, n_participants_tampered) {
     mutate(z_score = (score - mean(score)) / sd(score),
            abs_z_score = abs(z_score)) |>
     arrange(desc(z_score)) |> # assumes simulated data uses mean_intervention >= mean_control
-    slice_head(n = n_participants_tampered) # oversample n dropped
+    slice_head(n = n_participants_signchanged) # oversample n signchanged
   
   extreme_scores <- 
     bind_rows(smallest_intervention, 
               largest_control) |>
     arrange(desc(abs_z_score)) |>
-    slice_head(n = n_participants_tampered) |> # correctly sample n dropped
+    slice_head(n = n_participants_signchanged) |> # correctly sample n signchanged
     pull(rowname)
   
   # set 'altered' to TRUE for these rows, and score_altered to NA
@@ -1500,8 +1490,8 @@ experiment_parameters_grid <- expand_grid(
   mean_intervention = 0, 
   sd_control = 1,
   sd_intervention = 1,
-  proportion_participants_tampered = c(.01, .02, .03, .04, .05, .075, .10, .15),
-  iteration = 1:100
+  proportion_participants_signchanged = c(.01, .025, .05, .10, .15, .10, .15, .20, .25, .30, .35),
+  iteration = 1:10000
 )
 
 if(file.exists("../data/simulation_fixed_changesigns_percent.rds")){
@@ -1529,11 +1519,11 @@ if(file.exists("../data/simulation_fixed_changesigns_percent.rds")){
                                         .progress = TRUE,
                                         .options = furrr_options(seed = TRUE))) |>
     
-    mutate(n_participants_tampered = janitor::round_half_up(proportion_participants_tampered * n_per_condition*2)) |>
+    mutate(n_participants_signchanged = janitor::round_half_up(proportion_participants_signchanged * n_per_condition*2)) |>
     
     # generate data using the data generating function and the parameters relevant to data generation
     mutate(altered_data = future_pmap(list(generated_data,
-                                           n_participants_tampered),
+                                           n_participants_signchanged),
                                       alter_data,
                                       .progress = TRUE,
                                       .options = furrr_options(seed = TRUE))) |>
@@ -1578,7 +1568,7 @@ dat_illustrate <- simulation_fixed_changesigns_percent |>
 
 dat_illustrate |>
   slice_head(n = 10) |>
-  select(n_per_condition, proportion_participants_tampered, p_original, p_altered, diff) |>
+  select(n_per_condition, proportion_participants_signchanged, p_original, p_altered, diff) |>
   kable() |>
   kable_classic(full_width = FALSE)
 
@@ -1629,7 +1619,7 @@ simulation_fixed_changesigns_percent_summary <-
   unnest(analysis_results_altered_data) |>
   rename(p_altered_data = p) |>
   # summarize across iterations
-  group_by(n_per_condition, proportion_participants_tampered) |>
+  group_by(n_per_condition, proportion_participants_signchanged) |>
   summarize(original_data_false_positive_rate = mean(p_original_data < .05),
             altered_data_false_positive_rate = mean(p_altered_data < .05)) |>
   ungroup() 
@@ -1640,13 +1630,13 @@ simulation_fixed_changesigns_percent_summary |>
   kable_classic(full_width = FALSE)
 
 # simulation_fixed_changesigns_percent_summary |>
-#   filter(proportion_participants_tampered == .1) |>
+#   filter(proportion_participants_signchanged == .1) |>
 #   mutate_if(is.numeric, janitor::round_half_up, digits = 2) |>
 #   kable() |>
 #   kable_classic(full_width = FALSE)
 # 
 # simulation_fixed_changesigns_percent_summary |>
-#   filter(proportion_participants_tampered == .35) |>
+#   filter(proportion_participants_signchanged == .35) |>
 #   mutate_if(is.numeric, janitor::round_half_up, digits = 2) |>
 #   kable() |>
 #   kable_classic(full_width = FALSE)
@@ -1658,33 +1648,33 @@ simulation_fixed_changesigns_percent_summary |>
 ```{r}
 
 p_fixed_changesigns_percent <- ggplot(simulation_fixed_changesigns_percent_summary,
-       aes(proportion_participants_tampered, 
-           altered_data_false_positive_rate, 
-           color = as.factor(n_per_condition*2))) + 
+                                      aes(proportion_participants_signchanged, 
+                                          altered_data_false_positive_rate, 
+                                          color = as.factor(n_per_condition*2))) + 
   geom_hline(yintercept = 0.05, linetype = "dotted") +
   geom_line() +
   geom_point() +
   scale_color_viridis_d(begin = 0.2, end = 0.9, direction = -1) +
   theme_linedraw() +
   labs(color = "N",
-       x = "Participants tampered",
+       x = "% participants sign-changed",
        y = "False positive rate") +
   scale_y_continuous(limits = c(0,1), breaks = c(0, 0.05, .1, .2, .3, .4, .5, .6, .7, .8, .9, 1)) +
-  scale_x_continuous(labels = percent_format(), breaks = c(.01, .02, .03, .04, .05, .075, .10, .15)) +
+  scale_x_continuous(labels = percent_format(), breaks = c(.01, .025, .05, .10, .15, .20, .25, .30, .35)) +
   guides(color = guide_legend(reverse = TRUE))
 
 p_fixed_changesigns_percent
 
-ggsave(filename = "../communications/plots/fixed_changesigns_percent.pdf",
-       device = "pdf",
-       width = 6,
-       height = 12)
+# ggsave(filename = "../communications/plots/fixed_changesigns_percent.pdf",
+#        device = "pdf",
+#        width = 6,
+#        height = 5)
 
 ```
 
 # Combined plots
 
-```{r fig.height=9, fig.width=11}
+```{r fig.height=10, fig.width=13}
 
 p_fixed_exclusions_n +
   p_fixed_exclusions_percent +
@@ -1696,8 +1686,8 @@ p_fixed_exclusions_n +
 
 ggsave(filename = "../communications/plots/fixed_combined.pdf",
        device = "pdf",
-       width = 8,
-       height = 8)
+       width = 13,
+       height = 10)
 
 ```
 
