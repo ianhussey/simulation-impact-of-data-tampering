@@ -12,17 +12,25 @@ output:
     toc_float: yes
 ---
 
+# TODO
+
+- convert condition swaps to N rather than N pairs for consistency?
+
 # Overview 
 
 ## For types of tampering and fabrication
 
 - unwarranted dropping of cases, by N or proportion [done]
 - swapping conditions, by N or proportion [done]
+- swapping entire conditions, so that significant results in the wrong direction are simply relabeled as in the other direction. (this will increase false positives by half alpha - no need to simulate)
 - changing/offsetting existing cases - changing sign [done] its a bit arbitrary but could illustrate the point
 - duplicating existing cases 
-- fabricating new cases - make this less arbitrary by asking how extreme would these cases need to be to produce significant results eg via dfstat
+- duplicate cases from the top 10% of values?
+- fabricating new cases [done]
+- alter? same strategy as fabricate but change existing data points
+- duplicate all these sims with likert data (skewed, bounded, granular)
 
-- The simulations thus far use a fixed number of tampers and observe the false positive rate. What about an iterative strategy, where you keep tampering until you get significance, and quantify the necessary number of tampers?
+Some mention of Spiess et al. (2024) and dfstat seems warranted, even if only to say that many published articles results are driven by a very small number of data points and the effect disappears if they're removed. 
 
 ## For additional analyses
 
@@ -61,14 +69,14 @@ library(readr)
 library(tibble)
 library(purrr) 
 library(furrr)
+library(MASS)
 library(ggplot2)
 library(scales)
 library(knitr)
 library(kableExtra)
 library(janitor)
 library(ggtext)
-# devtools::install_github("ianhussey/simulateR")
-library(simulateR)
+library(patchwork)
 
 # set up parallel processing
 plan(multisession, workers = availableCores())
@@ -80,13 +88,11 @@ dir.create("../communications/plots")
 
 ```
 
-# Simulations
-
-## Unwarranted data exclusion (dropping N)
-
-### Simulation
+# Common functions and global variables
 
 ```{r}
+
+n_iterations <- 10000L
 
 # define data generating function ----
 generate_data <- function(n_per_condition,
@@ -121,6 +127,16 @@ analyse_data <- function(data) {
   
   return(res)
 }
+
+```
+
+# Unwarranted data exclusion (dropping N)
+
+## t-test
+
+### Simulation functions
+
+```{r}
 
 iterative_exclusion_once <- function(data) {
   
@@ -217,25 +233,29 @@ run_iterative_exclusion_study <- function(n_per_condition,
   }
 }
 
+```
 
-# Create a parameter grid
-experiment_parameters_grid_iterative <- expand_grid(
-  n_per_condition = c(10, seq(25, 200, by = 25)),
-  mean_control = 0,
-  mean_intervention = 0,
-  sd_control = 1,
-  sd_intervention = 1,
-  iteration = 1:10000
-)
+### Run simulation
 
+```{r}
 
-if(file.exists("../data/simulation_iterative_exclusions.rds")){
-  simulation_iterative_exclusions <- read_rds("../data/simulation_iterative_exclusions.rds")
+if(file.exists("../data/simulation_iterative_exclusions_meandiff.rds")){
+  simulation_iterative_exclusions_meandiff <- read_rds("../data/simulation_iterative_exclusions_meandiff.rds")
 } else {
+  
+  # Create a parameter grid
+  experiment_parameters_grid <- expand_grid(
+    n_per_condition = c(10, seq(25, 200, by = 25)),
+    mean_control = 0,
+    mean_intervention = 0,
+    sd_control = 1,
+    sd_intervention = 1,
+    iteration = 1:n_iterations
+  )
   
   set.seed(123)
   
-  simulation_iterative_exclusions <- experiment_parameters_grid_iterative |>
+  simulation_iterative_exclusions_meandiff <- experiment_parameters_grid |>
     mutate(drops_needed = future_pmap_dbl(list(n_per_condition, 
                                                mean_control, 
                                                mean_intervention, 
@@ -246,7 +266,7 @@ if(file.exists("../data/simulation_iterative_exclusions.rds")){
                                           .progress = TRUE,
                                           .options = furrr_options(seed = TRUE)))
   
-  write_rds(simulation_iterative_exclusions, "../data/simulation_iterative_exclusions.rds")
+  write_rds(simulation_iterative_exclusions_meandiff, "../data/simulation_iterative_exclusions_meandiff.rds")
 }
 
 ```
@@ -256,7 +276,7 @@ if(file.exists("../data/simulation_iterative_exclusions.rds")){
 ```{r}
 
 # Summarize results
-simulation_iterative_exclusions_summary <- simulation_iterative_exclusions |>
+simulation_iterative_exclusions_meandiff_summary <- simulation_iterative_exclusions_meandiff |>
   group_by(n_per_condition) |>
   summarize(proportion_never_sig = mean(drops_needed == floor(0.5 * n_per_condition * 2)),
             min = min(drops_needed[drops_needed < floor(0.5 * n_per_condition * 2)]),
@@ -264,7 +284,9 @@ simulation_iterative_exclusions_summary <- simulation_iterative_exclusions |>
             mean = mean(drops_needed[drops_needed < floor(0.5 * n_per_condition * 2)]),
             sd = sd(drops_needed[drops_needed < floor(0.5 * n_per_condition * 2)]),
             median = median(drops_needed[drops_needed < floor(0.5 * n_per_condition * 2)]),
-            mad = mad(drops_needed[drops_needed < floor(0.5 * n_per_condition * 2)])) |>
+            mad = mad(drops_needed[drops_needed < floor(0.5 * n_per_condition * 2)]),
+            p2.5 = quantile(drops_needed[drops_needed < floor(0.5 * n_per_condition * 2)], probs = 0.025),
+            p97.5 = quantile(drops_needed[drops_needed < floor(0.5 * n_per_condition * 2)], probs = 0.975)) |>
   ungroup() |>
   mutate(n_total = n_per_condition*2,
          prop_min = min/n_total,
@@ -272,11 +294,13 @@ simulation_iterative_exclusions_summary <- simulation_iterative_exclusions |>
          prop_mean = mean/n_total,
          prop_sd = sd/n_total,
          prop_median = median/n_total,
-         prop_mad = median/n_total) |>
+         prop_mad = median/n_total,
+         prop_p2.5 = p2.5 / n_total,
+         prop_p97.5 = p97.5 / n_total) |>
   relocate(n_total, .before = n_per_condition) |>
-  select(-n_per_condition)
+  dplyr::select(-n_per_condition)
 
-simulation_iterative_exclusions_summary |>
+simulation_iterative_exclusions_meandiff_summary |>
   mutate_if(is.numeric, janitor::round_half_up, digits = 2) |>
   kable() |>
   kable_classic(full_width = FALSE)
@@ -287,7 +311,7 @@ simulation_iterative_exclusions_summary |>
 
 ```{r}
 
-# ggplot(simulation_iterative_exclusions_summary, aes(x = proportion_never_sig)) +
+# ggplot(simulation_iterative_exclusions_meandiff_summary, aes(x = proportion_never_sig)) +
 #   geom_histogram(binwidth = 1) +
 #   labs(title = "Distribution of samples that never reach significance",
 #        x = "Number of Participants Dropped",
@@ -297,9 +321,9 @@ simulation_iterative_exclusions_summary |>
 #   scale_x_continuous(breaks = breaks_pretty(n = 5)) +
 #   facet_wrap(~ n_total)
 
-ggplot(simulation_iterative_exclusions, aes(x = drops_needed)) +
+ggplot(simulation_iterative_exclusions_meandiff, aes(x = drops_needed)) +
   geom_histogram(binwidth = 1) +
-  labs(title = "Distribution of drops needed to reach significance",
+  labs(title = "Dropping (N)",
        x = "Number of participants dropped per condition",
        y = "Count") +
   ylim(0, NA) +
@@ -307,160 +331,366 @@ ggplot(simulation_iterative_exclusions, aes(x = drops_needed)) +
   scale_x_continuous(breaks = breaks_pretty(n = 5)) +
   facet_wrap(~ n_per_condition) # N PER CONDITION NOT TOTAL N
 
-ggplot(simulation_iterative_exclusions_summary, aes(n_total, median)) +
+# ggplot(simulation_iterative_exclusions_meandiff_summary, aes(n_total, median)) +
+#   geom_point() +
+#   geom_linerange(aes(ymin = median - mad, ymax = median + mad)) +
+#   #geom_line() +
+#   labs(title = "Number of drops from each condition needed to reach significance",
+#        x = "Sample size (N)",
+#        y = "Median drops ± MAD") +
+#   theme_linedraw() +
+#   scale_y_continuous(limits = c(0, NA), breaks = breaks_pretty(n = 8)) +
+#   scale_x_continuous(breaks = c(10, seq(25, 200, by = 25))*2)
+# 
+# ggplot(simulation_iterative_exclusions_meandiff_summary, aes(n_total, prop_median)) +
+#   geom_point() +
+#   geom_linerange(aes(ymin = prop_median - prop_mad, ymax = prop_median + prop_mad)) +
+#   #geom_line() +
+#   labs(title = "Proportion of sample needed to be dropped to reach significance",
+#        x = "Sample size (N)",
+#        y = "Median proportion dropped ± MAD") +
+#   theme_linedraw() +
+#   scale_y_continuous(labels = percent_format(), limits = c(0, NA), breaks = breaks_pretty(n = 8)) +
+#   scale_x_continuous(breaks = c(10, seq(25, 200, by = 25))*2)
+
+
+p_iterative_exclusions_meandiff_n <- ggplot(simulation_iterative_exclusions_meandiff_summary, aes(n_total, median)) +
   geom_point() +
-  geom_linerange(aes(ymin = median - mad, ymax = median + mad)) +
+  geom_linerange(aes(ymin = p2.5, ymax = p97.5)) +
   #geom_line() +
-  labs(title = "Number of drops from each condition needed to reach significance",
-       x = "Sample size (N)",
-       y = "Median drops ± MAD") +
+  labs(title = "Dropping",
+       x = "Sample size",
+       y = "N dropped") +
   theme_linedraw() +
   scale_y_continuous(limits = c(0, NA), breaks = breaks_pretty(n = 8)) +
   scale_x_continuous(breaks = c(10, seq(25, 200, by = 25))*2)
 
-ggplot(simulation_iterative_exclusions_summary, aes(n_total, prop_median)) +
+p_iterative_exclusions_meandiff_n
+
+p_iterative_exclusions_meandiff_prop <- ggplot(simulation_iterative_exclusions_meandiff_summary, aes(n_total, prop_median)) +
   geom_point() +
-  geom_linerange(aes(ymin = prop_median - prop_mad, ymax = prop_median + prop_mad)) +
+  geom_linerange(aes(ymin = prop_p2.5, ymax = prop_p97.5)) +
   #geom_line() +
-  labs(title = "Proportion of sample needed to be dropped to reach significance",
-       x = "Sample size (N)",
-       y = "Median proportion dropped ± MAD") +
+  labs(title = "Dropping",
+       x = "Sample size",
+       y = "Proportion dropped") +
   theme_linedraw() +
   scale_y_continuous(labels = percent_format(), limits = c(0, NA), breaks = breaks_pretty(n = 8)) +
   scale_x_continuous(breaks = c(10, seq(25, 200, by = 25))*2)
 
+p_iterative_exclusions_meandiff_prop
+
 ```
 
-## Condition swapping
+## Correlation
 
-### Simulation
+### Simulation functions
 
 ```{r}
 
-iterative_swap_once <- function(data) {
+# Generate bivariate normal data with no correlation
+generate_uncorrelated_data <- function(n) {
+  mu <- c(0, 0)
+  sigma <- matrix(c(1, 0, 0, 1), nrow = 2)  # Identity matrix: no correlation
+  data <- as_tibble(mvrnorm(n, mu = mu, Sigma = sigma))
+  names(data) <- c("x", "y")
+  data$row_id <- 1:n
+  return(data)
+}
+
+# Analyze correlation
+analyse_correlation <- function(data) {
+  cor.test(data$x, data$y)$p.value
+}
+
+# Iteratively delete points that dampen a positive correlation
+iterative_drop_once <- function(data) {
+  data <- data |> filter(!is.na(x) & !is.na(y))
   
-  # Recompute z-scores within each condition
-  data_incl <- data |> 
-    group_by(condition) |>
-    mutate(z_score = (score - mean(score)) / sd(score)) |>
+  # Identify outliers in the top-left or bottom-right
+  data <- data |>
+    mutate(
+      score = -1 * x * y,  # large negative x*y = top-left or bottom-right
+      abs_score = abs(score)
+    )
+  
+  to_drop <- data |> slice_max(score, n = 1)
+  data <- data |>
+    mutate(
+      x = ifelse(row_id == to_drop$row_id, NA, x),
+      y = ifelse(row_id == to_drop$row_id, NA, y)
+    )
+  
+  return(data)
+}
+
+# Run one full trial
+run_iterative_correlation_exclusion <- function(n, max_drop_proportion = 0.5) {
+  data <- generate_uncorrelated_data(n)
+  p <- analyse_correlation(data)
+  
+  if (p < 0.05) return(0)  # already a false positive
+  
+  max_drops <- floor(max_drop_proportion * n)
+  drops <- 0
+  
+  while (p >= 0.05 && drops < max_drops) {
+    data <- iterative_drop_once(data)
+    drops <- drops + 1
+    p <- analyse_correlation(data |> filter(!is.na(x) & !is.na(y)))
+  }
+  
+  if (p < 0.05) return(drops) else return(drops)
+}
+
+```
+
+### Run simulation
+
+```{r}
+
+# Run simulations
+if(file.exists("../data/simulation_iterative_exclusion_correlation.rds")){
+  simulation_iterative_exclusion_correlation <- read_rds("../data/simulation_iterative_exclusion_correlation.rds")
+} else {
+  
+  # Parameter grid
+  experiment_grid <- expand_grid(
+    n = c(10*2, seq(from = 25*2, to = 200*2, by = 25*2)), # to match total sample size of other sims
+    iteration = 1:n_iterations
+  )
+  
+  set.seed(123)
+  
+  simulation_iterative_exclusion_correlation <- experiment_grid |>
+    mutate(drops_needed = future_map2_dbl(
+      n, iteration,
+      ~run_iterative_correlation_exclusion(.x),
+      .options = furrr_options(seed = TRUE),
+      .progress = TRUE
+    ))
+  
+  write_rds(simulation_iterative_exclusion_correlation, "../data/simulation_iterative_exclusion_correlation.rds")
+  
+}
+
+```
+
+### Summarize results
+
+```{r}
+
+simulation_iterative_exclusion_correlation_summary <- simulation_iterative_exclusion_correlation |>
+  group_by(n) |>
+  summarize(
+    proportion_never_sig = mean(drops_needed == floor(0.5 * n)),
+    min = min(drops_needed[drops_needed < floor(0.5 * n)]),
+    max = max(drops_needed[drops_needed < floor(0.5 * n)]),
+    mean = mean(drops_needed[drops_needed < floor(0.5 * n)]),
+    sd = sd(drops_needed[drops_needed < floor(0.5 * n)]),
+    median = median(drops_needed[drops_needed < floor(0.5 * n)]),
+    mad = mad(drops_needed[drops_needed < floor(0.5 * n)]),
+    p2.5 = quantile(drops_needed[drops_needed < floor(0.5 * n)], probs = 0.025),
+    p97.5 = quantile(drops_needed[drops_needed < floor(0.5 * n)], probs = 0.975)
+  ) |>
+  ungroup() |>
+  mutate(
+    prop_min = min / n,
+    prop_max = max / n,
+    prop_mean = mean / n,
+    prop_sd = sd / n,
+    prop_median = median / n,
+    prop_mad = mad / n,
+    prop_p2.5 = p2.5 / n,
+    prop_p97.5 = p97.5 / n
+  )
+
+simulation_iterative_exclusion_correlation_summary |> 
+  mutate(across(where(is.numeric), ~ janitor::round_half_up(., digits = 2))) |>
+  knitr::kable() |>
+  kableExtra::kable_classic(full_width = FALSE)
+
+```
+
+### Plot
+
+```{r}
+
+ggplot(simulation_iterative_exclusion_correlation, aes(x = drops_needed)) +
+  geom_histogram(binwidth = 1) +
+  facet_wrap(~ n) +
+  labs(title = "Drops needed to induce a false positive correlation",
+       x = "Number of points dropped",
+       y = "Count") +
+  theme_linedraw() +
+  scale_y_continuous(limits = c(0, NA), breaks = scales::breaks_pretty(n = 6)) +
+  scale_x_continuous(breaks = scales::breaks_pretty(n = 6))
+
+# ggplot(simulation_iterative_exclusion_correlation_summary, aes(n, median)) +
+#   geom_point() +
+#   geom_linerange(aes(ymin = median - mad, ymax = median + mad)) +
+#   labs(title = "Median number of drops to reach significance",
+#        x = "Sample size (N)",
+#        y = "Median drops ± MAD") +
+#   theme_linedraw() +
+#   scale_y_continuous(limits = c(0, NA), breaks = scales::breaks_pretty(n = 8)) +
+#   scale_x_continuous(breaks = scales::breaks_pretty(n = 8))
+# 
+# ggplot(simulation_iterative_exclusion_correlation_summary, aes(n, prop_median)) +
+#   geom_point() +
+#   geom_linerange(aes(ymin = prop_median - prop_mad, ymax = prop_median + prop_mad)) +
+#   labs(title = "Proportion of sample dropped to reach significance",
+#        x = "Sample size (N)",
+#        y = "Median proportion ± MAD") +
+#   theme_linedraw() +
+#   scale_y_continuous(labels = scales::percent_format(), limits = c(0, NA),
+#                      breaks = scales::breaks_pretty(n = 6)) +
+#   scale_x_continuous(breaks = scales::breaks_pretty(n = 8))
+
+p_iterative_exclusion_correlation_n <- ggplot(simulation_iterative_exclusion_correlation_summary, aes(n, median)) +
+  geom_point() +
+  geom_linerange(aes(ymin = p2.5, ymax = p97.5)) +
+  labs(title = "Dropping",
+       x = "Sample size",
+       y = "N dropped") +
+  theme_linedraw() +
+  scale_y_continuous(breaks = scales::breaks_pretty(n = 8))
+
+p_iterative_exclusion_correlation_n
+
+p_iterative_exclusion_correlation_prop <- ggplot(simulation_iterative_exclusion_correlation_summary, aes(n, prop_median)) +
+  geom_point() +
+  geom_linerange(aes(ymin = prop_p2.5, ymax = prop_p97.5)) +
+  labs(title = "Dropping",
+       x = "Sample size",
+       y = "Proportion dropped") +
+  theme_linedraw() +
+  scale_y_continuous(labels = scales::percent_format(),
+                     breaks = scales::breaks_pretty(n = 6)) +
+  scale_x_continuous(breaks = scales::breaks_pretty(n = 8))
+
+p_iterative_exclusion_correlation_prop
+
+```
+
+# Condition swapping 
+
+## t-test
+
+### Simulation functions
+
+```{r}
+
+# Swap condition of most extreme participant from each group
+iterative_condition_swap_once <- function(data) {
+  
+  data <- data |> 
+    group_by(condition) |> 
+    mutate(z_score = (score - mean(score)) / sd(score)) |> 
     ungroup()
   
-  # The smallest (lowest) in the Intervention group
-  smallest_in_intervention <- data_incl |>
-    filter(condition == "intervention") |>
-    slice_min(z_score, n = 1)
+  # Identify one participant in each group to switch
+  to_swap_intervention <- data |> filter(condition == "intervention") |> slice_min(z_score, n = 1)
+  to_swap_control      <- data |> filter(condition == "control") |> slice_max(z_score, n = 1)
   
-  # The largest (highest) in the Control group
-  largest_in_control <- data_incl |>
-    filter(condition == "control") |>
-    slice_max(z_score, n = 1)
-  
-  # If we can't find a valid pair (e.g., a group is down to 1 person or something similar),
-  # just return the data unchanged
-  if(nrow(smallest_in_intervention) < 1 || nrow(largest_in_control) < 1) {
+  if(nrow(to_swap_intervention) < 1 || nrow(to_swap_control) < 1) {
     return(data)
   }
   
-  # We'll swap their conditions
-  rows_to_swap <- c(smallest_in_intervention$row_id, largest_in_control$row_id)
+  rows_to_swap <- c(to_swap_intervention$row_number, to_swap_control$row_number)
   
-  data_swapped <- data |>
+  data <- data |> 
     mutate(condition = case_when(
-      row_id == smallest_in_intervention$row_id ~ "control",
-      row_id == largest_in_control$row_id ~ "intervention",
+      row_number %in% rows_to_swap & condition == "intervention" ~ "control",
+      row_number %in% rows_to_swap & condition == "control" ~ "intervention",
       TRUE ~ condition
-    ))
+    )) |> 
+    dplyr::select(-z_score)
   
-  return(data_swapped)
+  return(data)
 }
 
-
-run_iterative_swapping_study <- function(n_per_condition,
-                                         mean_control,
-                                         mean_intervention,
-                                         sd_control,
-                                         sd_intervention,
-                                         max_swap_proportion = 0.5) {
+# Main simulation function
+run_iterative_condition_swap_study <- function(n_per_condition,
+                                               mean_control,
+                                               mean_intervention,
+                                               sd_control,
+                                               sd_intervention,
+                                               max_swap_proportion = 0.5) {
   
-  # Generate data
   data <- generate_data(n_per_condition,
                         mean_control,
                         mean_intervention,
                         sd_control,
-                        sd_intervention)
+                        sd_intervention) |> 
+    mutate(row_number = row_number())
   
-  # Label rows so we can track them across swaps
-  data <- data |> mutate(row_id = row_number())
-  
-  # Initial test
   res <- analyse_data(data)
   p_val <- res$p[1]
   
   if(p_val < 0.05) {
-    # Already significant, no swaps needed
     return(0)
   }
   
-  # Otherwise, iterative swap
   n_total <- nrow(data)
-  # Because each "swap" moves *two* participants (1 from each group),
-  # let's define the maximum number of pairs we can swap
-  max_pairs_to_swap <- floor(max_swap_proportion * n_total / 2)
-  
+  max_swaps <- floor(max_swap_proportion * n_total)
   swaps_so_far <- 0
   
-  while(p_val >= 0.05 && swaps_so_far < max_pairs_to_swap) {
-    # perform one swap
-    data <- iterative_swap_once(data)
-    swaps_so_far <- swaps_so_far + 1
-    
-    # re-test
+  while(p_val >= 0.05 && swaps_so_far < max_swaps) {
+    data <- iterative_condition_swap_once(data)
+    swaps_so_far <- swaps_so_far + 2
     res <- analyse_data(data)
     p_val <- res$p[1]
   }
   
-  # If at the end p_val < 0.05, return the number of swaps
-  # else we swapped as much as we could but never reached significance
   return(swaps_so_far)
-}
-
-
-# Create parameter grid
-experiment_parameters_grid_iterative_swaps <- expand_grid(
-  n_per_condition = c(10, seq(from = 25, to = 200, by = 25)),
-  mean_control = 0,
-  mean_intervention = 0,
-  sd_control = 1,
-  sd_intervention = 1,
-  iteration = 1:10000
-)
-
-
-if(file.exists("../data/simulation_iterative_swaps.rds")){
-  simulation_iterative_swaps <- read_rds("../data/simulation_iterative_swaps.rds")
-} else {
-  
-  # Run the iterative approach for each row in the parameter grid
-  set.seed(123)
-  
-  simulation_iterative_swaps <- experiment_parameters_grid_iterative_swaps |>
-    mutate(swaps_needed = future_pmap_dbl(list(n_per_condition, mean_control, mean_intervention, sd_control, sd_intervention),
-                                          run_iterative_swapping_study,
-                                          max_swap_proportion = 0.5,   # up to 50% of participants
-                                          .progress = TRUE,
-                                          .options = furrr_options(seed = TRUE)))
-  
-  write_rds(simulation_iterative_swaps, "../data/simulation_iterative_swaps.rds")
 }
 
 ```
 
-### Summarize
+### Run simulation
+
+```{r}
+
+# Run simulation or load existing
+if(file.exists("../data/simulation_iterative_swaps_meandiff.rds")) {
+  simulation_iterative_swaps_meandiff <- read_rds("../data/simulation_iterative_swaps_meandiff.rds")
+} else {
+  
+  # Parameter grid
+  experiment_parameters_grid <- expand_grid(
+    n_per_condition = c(10, seq(25, 200, by = 25)),
+    mean_control = 0,
+    mean_intervention = 0,
+    sd_control = 1,
+    sd_intervention = 1,
+    iteration = 1:n_iterations
+  )
+  
+  set.seed(123)
+  
+  simulation_iterative_swaps_meandiff <- experiment_parameters_grid |> 
+    mutate(swaps_needed = future_pmap_dbl(list(n_per_condition, 
+                                               mean_control, 
+                                               mean_intervention, 
+                                               sd_control, 
+                                               sd_intervention),
+                                          run_iterative_condition_swap_study,
+                                          max_swap_proportion = 0.5, 
+                                          .progress = TRUE,
+                                          .options = furrr_options(seed = TRUE)))
+  
+  write_rds(simulation_iterative_swaps_meandiff, "../data/simulation_iterative_swaps_meandiff.rds")
+}
+
+```
+
+### Summary table
 
 ```{r}
 
 # Summarize results
-simulation_iterative_swaps_summary <- simulation_iterative_swaps |>
+simulation_iterative_swaps_meandiff_summary <- simulation_iterative_swaps_meandiff |>
   group_by(n_per_condition) |>
   summarize(proportion_never_sig = mean(swaps_needed == floor(0.5 * n_per_condition * 2)),
             min = min(swaps_needed[swaps_needed < floor(0.5 * n_per_condition * 2)]),
@@ -468,7 +698,9 @@ simulation_iterative_swaps_summary <- simulation_iterative_swaps |>
             mean = mean(swaps_needed[swaps_needed < floor(0.5 * n_per_condition * 2)]),
             sd = sd(swaps_needed[swaps_needed < floor(0.5 * n_per_condition * 2)]),
             median = median(swaps_needed[swaps_needed < floor(0.5 * n_per_condition * 2)]),
-            mad = mad(swaps_needed[swaps_needed < floor(0.5 * n_per_condition * 2)])) |>
+            mad = mad(swaps_needed[swaps_needed < floor(0.5 * n_per_condition * 2)]),
+            p2.5 = quantile(swaps_needed[swaps_needed < floor(0.5 * n_per_condition * 2)], probs = 0.025),
+            p97.5 = quantile(swaps_needed[swaps_needed < floor(0.5 * n_per_condition * 2)], probs = 0.975)) |>
   ungroup() |>
   mutate(n_total = n_per_condition*2,
          prop_min = min/n_total,
@@ -476,11 +708,13 @@ simulation_iterative_swaps_summary <- simulation_iterative_swaps |>
          prop_mean = mean/n_total,
          prop_sd = sd/n_total,
          prop_median = median/n_total,
-         prop_mad = median/n_total) |>
+         prop_mad = median/n_total,
+         prop_p2.5 = p2.5 / n_total,
+         prop_p97.5 = p97.5 / n_total) |>
   relocate(n_total, .before = n_per_condition) |>
-  select(-n_per_condition)
+  dplyr::select(-n_per_condition)
 
-simulation_iterative_swaps_summary |>
+simulation_iterative_swaps_meandiff_summary |>
   mutate_if(is.numeric, janitor::round_half_up, digits = 2) |>
   kable() |>
   kable_classic(full_width = FALSE)
@@ -491,7 +725,7 @@ simulation_iterative_swaps_summary |>
 
 ```{r}
 
-# ggplot(simulation_iterative_swaps_summary, aes(x = proportion_never_sig)) +
+# ggplot(simulation_iterative_swaps_meandiff_summary, aes(x = proportion_never_sig)) +
 #   geom_histogram(binwidth = 1) +
 #   labs(title = "Distribution of samples that never reach significance",
 #        x = "Number of pairs of condition swaps",
@@ -500,7 +734,7 @@ simulation_iterative_swaps_summary |>
 #   theme_linedraw() +
 #   facet_wrap(~ n_total)
 
-ggplot(simulation_iterative_swaps, aes(x = swaps_needed)) +
+ggplot(simulation_iterative_swaps_meandiff, aes(x = swaps_needed)) +
   geom_histogram(binwidth = 1) +
   labs(title = "Distribution of pairs of condition swaps needed to reach significance",
        x = "Number of pairs of condition swaps",
@@ -510,27 +744,847 @@ ggplot(simulation_iterative_swaps, aes(x = swaps_needed)) +
   scale_x_continuous(breaks = breaks_pretty(n = 5)) +
   facet_wrap(~ n_per_condition) # N PER CONDITION NOT TOTAL N
 
-ggplot(simulation_iterative_swaps_summary, aes(n_total, median)) +
+# ggplot(simulation_iterative_swaps_meandiff_summary, aes(n_total, median)) +
+#   geom_point() +
+#   geom_linerange(aes(ymin = median - mad, ymax = median + mad)) +
+#   #geom_line() +
+#   labs(title = "Number of pairs of condition swaps needed to reach significance",
+#        x = "Sample size (N)",
+#        y = "Median swapped ± MAD") +
+#   theme_linedraw() +
+#   scale_y_continuous(limits = c(0, NA), breaks = breaks_pretty(n = 8)) +
+#   scale_x_continuous(breaks = c(10, seq(25, 200, by = 25))*2)
+# 
+# ggplot(simulation_iterative_swaps_meandiff_summary, aes(n_total, prop_median)) +
+#   geom_point() +
+#   geom_linerange(aes(ymin = prop_median - prop_mad, ymax = prop_median + prop_mad)) +
+#   #geom_line() +
+#   labs(title = "Proportion of sample needed to be condition-swapped to reach significance",
+#        x = "Sample size (N)",
+#        y = "Median proportion swapped ± MAD") +
+#   theme_linedraw() +
+#   scale_y_continuous(labels = percent_format(), limits = c(0, NA), breaks = breaks_pretty(n = 8)) +
+#   scale_x_continuous(breaks = c(10, seq(25, 200, by = 25))*2)
+
+
+p_iterative_swaps_meandiff_n <- ggplot(simulation_iterative_swaps_meandiff_summary, aes(n_total, median)) +
   geom_point() +
-  geom_linerange(aes(ymin = median - mad, ymax = median + mad)) +
+  geom_linerange(aes(ymin = p2.5, ymax = p97.5)) +
   #geom_line() +
-  labs(title = "Number of pairs of condition swaps needed to reach significance",
-       x = "Sample size (N)",
-       y = "Median swapped ± MAD") +
+  labs(title = "Condition swapping",
+       x = "Sample size",
+       y = "N swapped") +
   theme_linedraw() +
   scale_y_continuous(limits = c(0, NA), breaks = breaks_pretty(n = 8)) +
   scale_x_continuous(breaks = c(10, seq(25, 200, by = 25))*2)
 
-ggplot(simulation_iterative_swaps_summary, aes(n_total, prop_median)) +
+p_iterative_swaps_meandiff_n
+
+p_iterative_swaps_meandiff_prop <- ggplot(simulation_iterative_swaps_meandiff_summary, aes(n_total, prop_median)) +
   geom_point() +
-  geom_linerange(aes(ymin = prop_median - prop_mad, ymax = prop_median + prop_mad)) +
+  geom_linerange(aes(ymin = prop_p2.5, ymax = prop_p97.5)) +
   #geom_line() +
-  labs(title = "Proportion of sample needed to be condition-swapped to reach significance",
-       x = "Sample size (N)",
-       y = "Median proportion swapped ± MAD") +
+  labs(title = "Condition swapping",
+       x = "Sample size",
+       y = "Proportion swapped") +
   theme_linedraw() +
   scale_y_continuous(labels = percent_format(), limits = c(0, NA), breaks = breaks_pretty(n = 8)) +
   scale_x_continuous(breaks = c(10, seq(25, 200, by = 25))*2)
+
+p_iterative_swaps_meandiff_prop
+
+```
+
+# Duplicate data points
+
+From top 10% most favorable data points
+
+## t-test
+
+### Simulation functions
+
+```{r}
+
+# Function to perform one round of top-10%-based duplication
+duplicate_from_top_10_percent_once <- function(data, original_top10_control, original_top10_intervention) {
+  
+  # Sample one from each condition's original top 10%
+  dup_control <- sample_n(original_top10_control, 1)
+  dup_intervention <- sample_n(original_top10_intervention, 1)
+  
+  # Append to data
+  data <- bind_rows(data, dup_control, dup_intervention)
+  
+  return(data)
+}
+
+# Main simulation function
+run_iterative_duplication_study <- function(n_per_condition,
+                                            mean_control,
+                                            mean_intervention,
+                                            sd_control,
+                                            sd_intervention,
+                                            max_duplication_proportion = 0.5,
+                                            proportion) {
+  
+  # Generate original data and label with row IDs
+  data <- generate_data(n_per_condition,
+                        mean_control,
+                        mean_intervention,
+                        sd_control,
+                        sd_intervention) %>%
+    mutate(row_id = row_number())
+  
+  # Compute original top 10% favorable scores per condition
+  top10_control <- data %>% 
+    filter(condition == "control") %>% 
+    slice_max(score, prop = proportion)
+  
+  top10_intervention <- data %>% 
+    filter(condition == "intervention") %>% 
+    slice_min(score, prop = proportion)
+  
+  # Initial p-value
+  p_val <- analyse_data(data)$p[1]
+  if (p_val < 0.05) return(0)
+  
+  n_total <- nrow(data)
+  max_dups <- floor(max_duplication_proportion * n_total)
+  dups_so_far <- 0
+  
+  while (p_val >= 0.05 && dups_so_far < max_dups) {
+    data <- duplicate_from_top_10_percent_once(data, top10_control, top10_intervention)
+    p_val <- analyse_data(data)$p[1]
+    dups_so_far <- dups_so_far + 2
+  }
+  
+  return(dups_so_far)
+}
+
+```
+
+### Run simulation
+
+```{r}
+
+if (file.exists("../data/simulation_iterative_duplication_meandiff.rds")) {
+  simulation_iterative_duplication_meandiff <- read_rds("../data/simulation_iterative_duplication_meandiff.rds")
+} else {
+  
+  # Parameter grid
+  experiment_parameters_grid <- expand_grid(
+    n_per_condition = c(10, seq(25, 200, by = 25)),
+    mean_control = 0,
+    mean_intervention = 0,
+    sd_control = 1,
+    sd_intervention = 1,
+    proportion = 0.1,
+    iteration = 1:n_iterations
+  )
+  
+  set.seed(123)
+  
+  simulation_iterative_duplication_meandiff <- experiment_parameters_grid %>%
+    mutate(dups_needed = future_pmap_dbl(list(n_per_condition,
+                                              mean_control,
+                                              mean_intervention,
+                                              sd_control,
+                                              sd_intervention,
+                                              proportion),
+                                         run_iterative_duplication_study,
+                                         max_duplication_proportion = 0.5,
+                                         .progress = TRUE,
+                                         .options = furrr_options(seed = TRUE)))
+  
+  write_rds(simulation_iterative_duplication_meandiff, "../data/simulation_iterative_duplication_meandiff.rds")
+}
+
+```
+
+### Summary table
+
+```{r}
+
+# Summarize results
+simulation_iterative_duplication_meandiff_summary <- simulation_iterative_duplication_meandiff |>
+  group_by(n_per_condition) |>
+  summarize(proportion_never_sig = mean(dups_needed == floor(0.5 * n_per_condition * 2)),
+            min = min(dups_needed[dups_needed < floor(0.5 * n_per_condition * 2)]),
+            max = max(dups_needed[dups_needed < floor(0.5 * n_per_condition * 2)]),
+            mean = mean(dups_needed[dups_needed < floor(0.5 * n_per_condition * 2)]),
+            sd = sd(dups_needed[dups_needed < floor(0.5 * n_per_condition * 2)]),
+            median = median(dups_needed[dups_needed < floor(0.5 * n_per_condition * 2)]),
+            mad = mad(dups_needed[dups_needed < floor(0.5 * n_per_condition * 2)]),
+            p2.5 = quantile(dups_needed[dups_needed < floor(0.5 * n_per_condition * 2)], probs = 0.025),
+            p97.5 = quantile(dups_needed[dups_needed < floor(0.5 * n_per_condition * 2)], probs = 0.975)) |>
+  ungroup() |>
+  mutate(n_total = n_per_condition*2,
+         prop_min = min/n_total,
+         prop_max = max/n_total,
+         prop_mean = mean/n_total,
+         prop_sd = sd/n_total,
+         prop_median = median/n_total,
+         prop_mad = median/n_total,
+         prop_p2.5 = p2.5 / n_total,
+         prop_p97.5 = p97.5 / n_total) |>
+  relocate(n_total, .before = n_per_condition) |>
+  dplyr::select(-n_per_condition)
+
+simulation_iterative_duplication_meandiff_summary |>
+  mutate_if(is.numeric, janitor::round_half_up, digits = 2) |>
+  kable() |>
+  kable_classic(full_width = FALSE)
+
+```
+
+### Plot
+
+```{r}
+
+# ggplot(simulation_iterative_duplication_meandiff_summary, aes(x = proportion_never_sig)) +
+#   geom_histogram(binwidth = 1) +
+#   labs(title = "Distribution of samples that never reach significance",
+#        x = "Number of duplicated participants",
+#        y = "Count") +
+#   ylim(0, NA) +
+#   theme_linedraw() +
+#   facet_wrap(~ n_total)
+
+ggplot(simulation_iterative_duplication_meandiff, aes(x = dups_needed)) +
+  geom_histogram(binwidth = 1) +
+  labs(title = "Distribution of number of duplicated participants needed to reach significance",
+       x = "Number of pairs of condition swaps",
+       y = "Count") +
+  ylim(0, NA) +
+  theme_linedraw() +
+  scale_x_continuous(breaks = breaks_pretty(n = 5)) +
+  facet_wrap(~ n_per_condition) # N PER CONDITION NOT TOTAL N
+
+# ggplot(simulation_iterative_duplication_meandiff_summary, aes(n_total, median)) +
+#   geom_point() +
+#   geom_linerange(aes(ymin = median - mad, ymax = median + mad)) +
+#   #geom_line() +
+#   labs(title = "Number of duplicated participants needed to reach significance",
+#        x = "Sample size (N)",
+#        y = "Median swapped ± MAD") +
+#   theme_linedraw() +
+#   scale_y_continuous(limits = c(0, NA), breaks = breaks_pretty(n = 8)) +
+#   scale_x_continuous(breaks = c(10, seq(25, 200, by = 25))*2)
+# 
+# ggplot(simulation_iterative_duplication_meandiff_summary, aes(n_total, prop_median)) +
+#   geom_point() +
+#   geom_linerange(aes(ymin = prop_median - prop_mad, ymax = prop_median + prop_mad)) +
+#   #geom_line() +
+#   labs(title = "Proportion of sample duplication needed to reach significance",
+#        x = "Sample size (N)",
+#        y = "Median proportion swapped ± MAD") +
+#   theme_linedraw() +
+#   scale_y_continuous(labels = percent_format(), limits = c(0, NA), breaks = breaks_pretty(n = 8)) +
+#   scale_x_continuous(breaks = c(10, seq(25, 200, by = 25))*2)
+
+
+p_iterative_duplication_meandiff_n <- ggplot(simulation_iterative_duplication_meandiff_summary, aes(n_total, median)) +
+  geom_point() +
+  geom_linerange(aes(ymin = p2.5, ymax = p97.5)) +
+  #geom_line() +
+  labs(title = "Duplication",
+       x = "Sample size",
+       y = "N duplicated") +
+  theme_linedraw() +
+  scale_y_continuous(limits = c(0, NA), breaks = breaks_pretty(n = 8)) +
+  scale_x_continuous(breaks = c(10, seq(25, 200, by = 25))*2)
+
+p_iterative_duplication_meandiff_n
+
+p_iterative_duplication_meandiff_prop <- ggplot(simulation_iterative_duplication_meandiff_summary, aes(n_total, prop_median)) +
+  geom_point() +
+  geom_linerange(aes(ymin = prop_p2.5, ymax = prop_p97.5)) +
+  #geom_line() +
+  labs(title = "Duplication",
+       x = "Sample size",
+       y = "Proportion duplicated") +
+  theme_linedraw() +
+  scale_y_continuous(labels = percent_format(), limits = c(0, NA), breaks = breaks_pretty(n = 8)) +
+  scale_x_continuous(breaks = c(10, seq(25, 200, by = 25))*2)
+
+p_iterative_duplication_meandiff_prop
+
+```
+
+## Correlation
+
+TODO
+
+# Change sign (%)
+
+## t-test
+
+Very long run time compared to the others?
+
+### Simulation functions
+
+Optimised function avoids data set duplication and use of t.test which is slow - might want to use the original for a publication, even if slow, for the sake of standardization
+
+```{r}
+
+# slow
+# iterative_sign_switch_once <- function(data) {
+#   # Compute z-scores across the full sample
+#   data <- data %>%
+#     mutate(z_score = (score - mean(score)) / sd(score),
+#            flipped_score = -score)
+# 
+#   # Try flipping each participant, and check resulting p-value
+#   candidate_results <- map_dfr(1:nrow(data), function(i) {
+#     test_data <- data
+#     test_data$score[i] <- test_data$flipped_score[i]
+# 
+#     p <- t.test(score ~ condition, data = test_data, var.equal = TRUE)$p.value
+# 
+#     tibble(row_id = test_data$row_id[i], new_p = p)
+#   })
+# 
+#   # Identify the row that gives the lowest p-value
+#   best_candidate <- candidate_results %>%
+#     slice_min(new_p, n = 1)
+# 
+#   # Apply the flip
+#   data$score[data$row_id == best_candidate$row_id] <- -data$score[data$row_id == best_candidate$row_id]
+# 
+#   return(data %>% dplyr::select(-z_score, -flipped_score))
+# }
+
+# optimised
+iterative_sign_switch_once <- function(data) {
+  # Precompute group info
+  condition <- data$condition
+  group_A <- condition == unique(condition)[1]
+  group_B <- !group_A
+  score <- data$score
+  
+  # Precompute group sizes
+  n_A <- sum(group_A)
+  n_B <- sum(group_B)
+  
+  best_p <- 1
+  best_i <- NA
+  
+  # Try flipping each participant and compute t stat manually
+  for (i in seq_along(score)) {
+    score_flipped <- score
+    score_flipped[i] <- -score[i]
+    
+    m_A <- mean(score_flipped[group_A])
+    m_B <- mean(score_flipped[group_B])
+    s_A <- sd(score_flipped[group_A])
+    s_B <- sd(score_flipped[group_B])
+    
+    # Pooled SD
+    s_pooled <- sqrt(((n_A - 1) * s_A^2 + (n_B - 1) * s_B^2) / (n_A + n_B - 2))
+    t_stat <- (m_A - m_B) / (s_pooled * sqrt(1 / n_A + 1 / n_B))
+    df <- n_A + n_B - 2
+    p_val <- 2 * pt(-abs(t_stat), df)
+    
+    if (p_val < best_p) {
+      best_p <- p_val
+      best_i <- i
+    }
+  }
+  
+  # Apply the flip only to the best row
+  data$score[best_i] <- -data$score[best_i]
+  
+  return(data)
+}
+
+
+run_iterative_sign_switch_study <- function(n_per_condition,
+                                            mean_control,
+                                            mean_intervention,
+                                            sd_control,
+                                            sd_intervention,
+                                            max_flips_proportion = 0.5) {
+  data <- generate_data(n_per_condition,
+                        mean_control,
+                        mean_intervention,
+                        sd_control,
+                        sd_intervention) %>%
+    mutate(row_id = row_number())
+  
+  p_val <- t.test(score ~ condition, data = data, var.equal = TRUE)$p.value
+  if (p_val < 0.05) return(0)
+  
+  n_total <- nrow(data)
+  max_flips <- floor(max_flips_proportion * n_total)
+  flips <- 0
+  
+  while (p_val >= 0.05 && flips < max_flips) {
+    data <- iterative_sign_switch_once(data)
+    p_val <- t.test(score ~ condition, data = data, var.equal = TRUE)$p.value
+    flips <- flips + 1
+  }
+  
+  return(flips)
+}
+
+```
+
+### Run simulation
+
+```{r}
+
+if (file.exists("../data/simulation_iterative_changesigns_meandiff.rds")) {
+  simulation_iterative_changesigns_meandiff <- read_rds("../data/simulation_iterative_changesigns_meandiff.rds")
+} else {
+  
+  experiment_parameters_grid <- expand_grid(
+    n_per_condition = c(10, seq(25, 200, by = 25)),
+    mean_control = 0,
+    mean_intervention = 0,
+    sd_control = 1,
+    sd_intervention = 1,
+    iteration = 1:n_iterations
+  )
+  
+  set.seed(123)
+  
+  simulation_iterative_changesigns_meandiff <- experiment_parameters_grid %>%
+    mutate(flips_needed = future_pmap_dbl(list(n_per_condition,
+                                               mean_control,
+                                               mean_intervention,
+                                               sd_control,
+                                               sd_intervention),
+                                          run_iterative_sign_switch_study,
+                                          max_flips_proportion = 0.5,
+                                          .progress = TRUE,
+                                          .options = furrr_options(seed = TRUE)))
+  
+  write_rds(simulation_iterative_changesigns_meandiff, "../data/simulation_iterative_changesigns_meandiff.rds")
+}
+
+```
+
+### Summary table
+
+```{r}
+
+# Summarize results
+simulation_iterative_changesigns_meandiff_summary <- simulation_iterative_changesigns_meandiff |>
+  group_by(n_per_condition) |>
+  summarize(proportion_never_sig = mean(flips_needed == floor(0.5 * n_per_condition * 2)),
+            min = min(flips_needed[flips_needed < floor(0.5 * n_per_condition * 2)]),
+            max = max(flips_needed[flips_needed < floor(0.5 * n_per_condition * 2)]),
+            mean = mean(flips_needed[flips_needed < floor(0.5 * n_per_condition * 2)]),
+            sd = sd(flips_needed[flips_needed < floor(0.5 * n_per_condition * 2)]),
+            median = median(flips_needed[flips_needed < floor(0.5 * n_per_condition * 2)]),
+            mad = mad(flips_needed[flips_needed < floor(0.5 * n_per_condition * 2)]),
+            p2.5 = quantile(flips_needed[flips_needed < floor(0.5 * n_per_condition * 2)], probs = 0.025),
+            p97.5 = quantile(flips_needed[flips_needed < floor(0.5 * n_per_condition * 2)], probs = 0.975)) |>
+  ungroup() |>
+  mutate(n_total = n_per_condition*2,
+         prop_min = min/n_total,
+         prop_max = max/n_total,
+         prop_mean = mean/n_total,
+         prop_sd = sd/n_total,
+         prop_median = median/n_total,
+         prop_mad = median/n_total,
+         prop_p2.5 = p2.5 / n_total,
+         prop_p97.5 = p97.5 / n_total) |>
+  relocate(n_total, .before = n_per_condition) |>
+  dplyr::select(-n_per_condition)
+
+simulation_iterative_changesigns_meandiff_summary |>
+  mutate_if(is.numeric, janitor::round_half_up, digits = 2) |>
+  kable() |>
+  kable_classic(full_width = FALSE)
+
+```
+
+### Plot
+
+```{r}
+
+# ggplot(simulation_iterative_changesigns_meandiff_summary, aes(x = proportion_never_sig)) +
+#   geom_histogram(binwidth = 1) +
+#   labs(title = "Distribution of samples that never reach significance",
+#        x = "Number of sign changes",
+#        y = "Count") +
+#   ylim(0, NA) +
+#   theme_linedraw() +
+#   facet_wrap(~ n_total)
+
+ggplot(simulation_iterative_changesigns_meandiff, aes(x = flips_needed)) +
+  geom_histogram(binwidth = 1) +
+  labs(title = "Distribution of sign changes needed to reach significance",
+       x = "Number of sign changes",
+       y = "Count") +
+  ylim(0, NA) +
+  theme_linedraw() +
+  scale_x_continuous(breaks = breaks_pretty(n = 5)) +
+  facet_wrap(~ n_per_condition) # N PER CONDITION NOT TOTAL N
+
+p_iterative_changesigns_meandiff_n <- ggplot(simulation_iterative_changesigns_meandiff_summary, aes(n_total, median)) +
+  geom_point() +
+  geom_linerange(aes(ymin = p2.5, ymax = p97.5)) +
+  #geom_line() +
+  labs(title = "Sign changing",
+       x = "Sample size",
+       y = "N sign changed") +
+  theme_linedraw() +
+  scale_y_continuous(limits = c(0, NA), breaks = breaks_pretty(n = 8)) +
+  scale_x_continuous(breaks = c(10, seq(25, 200, by = 25))*2)
+
+p_iterative_changesigns_meandiff_n
+
+p_iterative_changesigns_meandiff_prop <- ggplot(simulation_iterative_changesigns_meandiff_summary, aes(n_total, prop_median)) +
+  geom_point() +
+  geom_linerange(aes(ymin = prop_p2.5, ymax = prop_p97.5)) +
+  #geom_line() +
+  labs(title = "Sign changing",
+       x = "Sample size",
+       y = "Proportion sign changed") +
+  theme_linedraw() +
+  scale_y_continuous(labels = percent_format(), limits = c(0, NA), breaks = breaks_pretty(n = 8)) +
+  scale_x_continuous(breaks = c(10, seq(25, 200, by = 25))*2)
+
+p_iterative_changesigns_meandiff_prop
+
+```
+
+## Correlation
+
+TODO
+
+# Fabrication
+
+## Illustrate 
+
+for the correlation sim, m = .93 so that cohen's d = 5.0 == pearson's r = .93
+
+```{r}
+
+x_vals <- seq(-7, 7, length.out = 1000)
+df <- tibble(
+  x = rep(x_vals, 2),
+  density = c(dnorm(x_vals, mean = 0, sd = 1),
+              dnorm(x_vals, mean = 5, sd = 0.2)),
+  distribution = rep(c("N(0,1)", "N(1,0.2)"), each = length(x_vals))
+)
+
+ggplot(df, aes(x = x, y = density, color = distribution)) +
+  geom_line(size = 1) +
+  labs(title = "Two Normal Distributions",
+       x = "Value", y = "Density") +
+  theme_linedraw()
+
+```
+
+## t-test
+
+### Simulation functions
+
+```{r}
+
+run_iterative_fabrication_study <- function(n_per_condition,
+                                            mean_control,
+                                            mean_intervention,
+                                            sd_control,
+                                            sd_intervention,
+                                            fabricated_control_mean,
+                                            fabricated_control_sd,
+                                            fabricated_intervention_mean,
+                                            fabricated_intervention_sd,
+                                            max_add_proportion = 0.5) {
+  
+  # Generate original data
+  data <- generate_data(n_per_condition,
+                        mean_control,
+                        mean_intervention,
+                        sd_control,
+                        sd_intervention) %>%
+    mutate(row_id = row_number())
+  
+  # Initial p-value
+  p_val <- analyse_data(data)$p[1]
+  if (p_val < 0.05) return(0)
+  
+  n_total <- nrow(data)
+  max_adds <- floor(max_add_proportion * n_total)
+  adds_so_far <- 0
+  
+  while (p_val >= 0.05 && adds_so_far < max_adds) {
+    # Add one control and one intervention point per iteration
+    new_control <- tibble(condition = "control", score = rnorm(1, mean = fabricated_control_mean, sd = fabricated_control_sd))
+    new_intervention <- tibble(condition = "intervention", score = rnorm(1, mean = fabricated_intervention_mean, sd = fabricated_intervention_sd))
+    
+    data <- bind_rows(data, new_control, new_intervention)
+    adds_so_far <- adds_so_far + 2
+    
+    p_val <- analyse_data(data)$p[1]
+  }
+  
+  return(adds_so_far)
+}
+
+```
+
+### Run simulation
+
+```{r}
+
+if (file.exists("../data/simulation_iterative_fabrication_meandiff.rds")) {
+  simulation_iterative_fabrication_meandiff <- read_rds("../data/simulation_iterative_fabrication_meandiff.rds")
+} else {
+  
+  experiment_parameters_grid <- expand_grid(
+    n_per_condition = c(10, seq(25, 200, by = 25)),
+    mean_control = 0,
+    mean_intervention = 0,
+    sd_control = 1,
+    sd_intervention = 1,
+    fabricated_control_mean = 0,
+    fabricated_control_sd = 0.2,
+    fabricated_intervention_mean = 5,
+    fabricated_intervention_sd = 0.2,
+    iteration = 1:n_iterations
+  )
+  
+  set.seed(123)
+  
+  simulation_iterative_fabrication_meandiff <- experiment_parameters_grid %>%
+    mutate(adds_needed = future_pmap_dbl(list(n_per_condition,
+                                              mean_control,
+                                              mean_intervention,
+                                              sd_control,
+                                              sd_intervention,
+                                              fabricated_control_mean,
+                                              fabricated_control_sd,
+                                              fabricated_intervention_mean,
+                                              fabricated_intervention_sd),
+                                         run_iterative_fabrication_study,
+                                         max_add_proportion = 0.5,
+                                         .progress = TRUE,
+                                         .options = furrr_options(seed = TRUE)))
+  
+  write_rds(simulation_iterative_fabrication_meandiff, "../data/simulation_iterative_fabrication_meandiff.rds")
+}
+
+```
+
+### Summary table
+
+```{r}
+
+# Summarize results
+simulation_iterative_fabrication_meandiff_summary <- simulation_iterative_fabrication_meandiff |>
+  group_by(n_per_condition) |>
+  summarize(proportion_never_sig = mean(adds_needed == floor(0.5 * n_per_condition * 2)),
+            min = min(adds_needed[adds_needed < floor(0.5 * n_per_condition * 2)]),
+            max = max(adds_needed[adds_needed < floor(0.5 * n_per_condition * 2)]),
+            mean = mean(adds_needed[adds_needed < floor(0.5 * n_per_condition * 2)]),
+            sd = sd(adds_needed[adds_needed < floor(0.5 * n_per_condition * 2)]),
+            median = median(adds_needed[adds_needed < floor(0.5 * n_per_condition * 2)]),
+            mad = mad(adds_needed[adds_needed < floor(0.5 * n_per_condition * 2)]),
+            p2.5 = quantile(adds_needed[adds_needed < floor(0.5 * n_per_condition * 2)], probs = 0.025),
+            p97.5 = quantile(adds_needed[adds_needed < floor(0.5 * n_per_condition * 2)], probs = 0.975)) |>
+  ungroup() |>
+  mutate(n_total = n_per_condition*2,
+         prop_min = min/n_total,
+         prop_max = max/n_total,
+         prop_mean = mean/n_total,
+         prop_sd = sd/n_total,
+         prop_median = median/n_total,
+         prop_mad = median/n_total,
+         prop_p2.5 = p2.5 / n_total,
+         prop_p97.5 = p97.5 / n_total) |>
+  relocate(n_total, .before = n_per_condition) |>
+  dplyr::select(-n_per_condition)
+
+simulation_iterative_fabrication_meandiff_summary |>
+  mutate_if(is.numeric, janitor::round_half_up, digits = 2) |>
+  kable() |>
+  kable_classic(full_width = FALSE)
+
+```
+
+### Plot
+
+```{r}
+
+# ggplot(simulation_iterative_fabrication_meandiff_summary, aes(x = proportion_never_sig)) +
+#   geom_histogram(binwidth = 1) +
+#   labs(title = "Distribution of samples that never reach significance",
+#        x = "Number of fabricated participants",
+#        y = "Count") +
+#   ylim(0, NA) +
+#   theme_linedraw() +
+#   facet_wrap(~ n_total)
+
+ggplot(simulation_iterative_fabrication_meandiff, aes(x = adds_needed)) +
+  geom_histogram(binwidth = 1) +
+  labs(title = "Distribution of number of duplicated participants needed to reach significance",
+       x = "Number of fabricated participants",
+       y = "Count") +
+  ylim(0, NA) +
+  theme_linedraw() +
+  scale_x_continuous(breaks = breaks_pretty(n = 5)) +
+  facet_wrap(~ n_per_condition) # N PER CONDITION NOT TOTAL N
+
+# ggplot(simulation_iterative_fabrication_meandiff_summary, aes(n_total, median)) +
+#   geom_point() +
+#   geom_linerange(aes(ymin = median - mad, ymax = median + mad)) +
+#   #geom_line() +
+#   labs(title = "Number of pairs of fabricated participants needed to reach significance",
+#        x = "Sample size (N)",
+#        y = "Median fabricated ± MAD") +
+#   theme_linedraw() +
+#   scale_y_continuous(limits = c(0, NA), breaks = breaks_pretty(n = 8)) +
+#   scale_x_continuous(breaks = c(10, seq(25, 200, by = 25))*2)
+# 
+# ggplot(simulation_iterative_fabrication_meandiff_summary, aes(n_total, prop_median)) +
+#   geom_point() +
+#   geom_linerange(aes(ymin = prop_median - prop_mad, ymax = prop_median + prop_mad)) +
+#   #geom_line() +
+#   labs(title = "Proportion of fabricated participants needed to reach significance",
+#        x = "Sample size (N)",
+#        y = "Median proportion fabricated ± MAD") +
+#   theme_linedraw() +
+#   scale_y_continuous(labels = percent_format(), limits = c(0, NA), breaks = breaks_pretty(n = 8)) +
+#   scale_x_continuous(breaks = c(10, seq(25, 200, by = 25))*2)
+
+
+p_iterative_fabrication_meandiff_n <- ggplot(simulation_iterative_fabrication_meandiff_summary, aes(n_total, median)) +
+  geom_point() +
+  geom_linerange(aes(ymin = p2.5, ymax = p97.5)) +
+  #geom_line() +
+  labs(title = "Fabrication",
+       x = "Sample size",
+       y = "N fabricated") +
+  theme_linedraw() +
+  scale_y_continuous(limits = c(0, NA), breaks = breaks_pretty(n = 8)) +
+  scale_x_continuous(breaks = c(10, seq(25, 200, by = 25))*2)
+
+p_iterative_fabrication_meandiff_n
+
+p_iterative_fabrication_meandiff_prop <- ggplot(simulation_iterative_fabrication_meandiff_summary, aes(n_total, prop_median)) +
+  geom_point() +
+  geom_linerange(aes(ymin = prop_p2.5, ymax = prop_p97.5)) +
+  #geom_line() +
+  labs(title = "Fabrication",
+       x = "Sample size",
+       y = "Proportion fabricated") +
+  theme_linedraw() +
+  scale_y_continuous(labels = percent_format(), limits = c(0, NA), breaks = breaks_pretty(n = 8)) +
+  scale_x_continuous(breaks = c(10, seq(25, 200, by = 25))*2)
+
+p_iterative_fabrication_meandiff_prop
+
+```
+
+## Correlation
+
+TODO
+
+# Alteration
+
+## t-test
+
+TODO
+
+## Correlation
+
+TODO
+
+# Combined tables and plots
+
+## t-tests
+
+### Facets
+
+```{r fig.height=15, fig.width=11}
+
+p_iterative_exclusions_meandiff_n + 
+  p_iterative_exclusions_meandiff_prop + 
+  p_iterative_swaps_meandiff_n +
+  p_iterative_swaps_meandiff_prop +
+  p_iterative_duplication_meandiff_n +
+  p_iterative_duplication_meandiff_prop +
+  p_iterative_changesigns_meandiff_n +
+  p_iterative_changesigns_meandiff_prop +
+  p_iterative_fabrication_meandiff_n +
+  p_iterative_fabrication_meandiff_prop +
+  plot_layout(ncol = 2)
+
+```
+
+### Single
+
+```{r}
+
+simulation_iterative_meandiff_summary <- bind_rows(
+  simulation_iterative_exclusions_meandiff_summary |> mutate(Method = "Dropping"),
+  simulation_iterative_swaps_meandiff_summary |> mutate(Method = "Condition swapping"),
+  simulation_iterative_duplication_meandiff_summary |> mutate(Method = "Duplication"),
+  simulation_iterative_changesigns_meandiff_summary |> mutate(Method = "Sign changing"),
+  simulation_iterative_fabrication_meandiff_summary |> mutate(Method = "Fabrication")
+) |>
+  mutate(Method = fct_relevel(Method, "Duplication", "Fabrication", "Dropping", "Condition swapping", "Sign changing"))
+
+simulation_iterative_meandiff_summary |>
+  relocate(Method, .before = n_total) |>
+  dplyr::select(-mean, -sd, -prop_mean, -prop_sd) |>
+  mutate_if(is.numeric, janitor::round_half_up, digits = 2) |>
+  kable() |>
+  kable_classic(full_width = FALSE)
+
+```
+
+
+```{r fig.height=4, fig.width=13}
+
+p_meandiff_n <- ggplot(simulation_iterative_meandiff_summary, aes(n_total, median, color = Method)) +
+  geom_point(position = position_dodge(width = 25)) +
+  geom_linerange(aes(ymin = p2.5, ymax = p97.5), position = position_dodge(width = 25)) +
+  labs(x = "Sample size",
+       y = "N tampered") +
+  theme_linedraw() +
+  scale_y_continuous(limits = c(0, NA), breaks = breaks_pretty(n = 8)) +
+  scale_x_continuous(breaks = c(10, seq(25, 200, by = 25))*2) +
+  scale_color_viridis_d(begin = 0.2, end = 0.8)
+
+p_meandiff_prop <- ggplot(simulation_iterative_meandiff_summary, aes(n_total, prop_median, color = Method)) +
+  geom_point(position = position_dodge(width = 25)) +
+  geom_linerange(aes(ymin = prop_p2.5, ymax = prop_p97.5), position = position_dodge(width = 25)) +
+  labs(x = "Sample size",
+       y = "Proportion tampered") +
+  theme_linedraw() +
+  scale_y_continuous(labels = percent_format(), limits = c(0, NA), breaks = breaks_pretty(n = 8)) +
+  scale_x_continuous(breaks = c(10, seq(25, 200, by = 25))*2) +
+  scale_color_viridis_d(begin = 0.2, end = 0.8)
+
+p_meandiff_n +
+  p_meandiff_prop +
+  plot_layout(ncol = 2, guides = "collect")
+
+ggsave(filename = "../communications/plots/iterative_meandiff_combined.pdf",
+       device = "pdf",
+       width = 13,
+       height = 4)
+
+ggsave(filename = "../communications/plots/iterative_meandiff_combined.png",
+       device = "png",
+       width = 13,
+       height = 4)
+
+```
+
+## Correlations
+
+```{r fig.height=3, fig.width=11}
+
+p_iterative_exclusion_correlation_n +
+  p_iterative_exclusion_correlation_prop +
+  plot_layout(ncol = 2)
 
 ```
 
