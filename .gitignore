@@ -7,3 +7,4 @@ data/simulation_condition_swapping.rds
 *.rds
 /dev
 /old
+/literature/files
