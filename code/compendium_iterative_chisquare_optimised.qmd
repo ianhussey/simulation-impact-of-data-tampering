@@ -29,14 +29,7 @@ format:
 # Introduction
 
 ::: {.callout-note}
-This is an optimised re-implementation of `compendium_iterative_chisquare.qmd`. The
-design, estimands, summaries, tables and figures are identical; only the inner loop is
-rewritten. For a 2x2 table the entire dataset is four counts, so the tampered state is
-carried as four integers and each tampering step is O(1): no data frame is built, and the
-chi-square statistic is evaluated in closed form rather than through `table()` and
-`chisq.test()`. Random number calls are made in the same order as the reference, so results
-reproduce it exactly. Results are written to separate `..._opt_...rds` cache files. See
-*Optimisation and verification* at the foot of this document.
+This is an optimised re-implementation of `compendium_iterative_chisquare.qmd`. The design, estimands, summaries, tables and figures are identical; only the inner loop is rewritten. For a 2x2 table the entire dataset is four counts, so the tampered state is carried as four integers and each tampering step is O(1): no data frame is built, and the chi-square statistic is evaluated in closed form rather than through `table()` and `chisq.test()`. Random number calls are made in the same order as the reference, so results reproduce it exactly. Results are written to separate `..._opt_...rds` cache files. See *Optimisation and verification* at the foot of this document.
 :::
 
 
@@ -1115,9 +1108,7 @@ The aims — to estimate the number of tampered cells needed and how it varies w
 
 # Optimisation and verification
 
-This document is an optimised re-implementation of `compendium_iterative_chisquare.qmd`. Everything outside the
-tampering loops -- the design, the parameter grids, the estimands, the summarising
-helpers, the tables, the figures and the prose -- is identical. Three things changed:
+This document is an optimised re-implementation of `compendium_iterative_chisquare.qmd`. Everything outside the tampering loops -- the design, the parameter grids, the estimands, the summarising helpers, the tables, the figures and the prose -- is identical. Three things changed:
 
 1. The dataset is no longer a data frame during tampering. A 2x2 table is fully described by four counts, so the tampered state is four integers and every tampering step is O(1) regardless of sample size. Each tampering step
    in the reference rebuilt a tibble through a chain of dplyr verbs; here it is a handful of
@@ -1127,34 +1118,13 @@ helpers, the tables, the figures and the prose -- is identical. Three things cha
    step.
 3. The effect sizes are computed directly rather than through a package call. (No effect size is computed in the binary setting.)
 
-No change was made to what the procedure does. In particular, the random number calls are
-made in the same order and with the same arguments as in the reference, which makes the
-equivalence checkable exactly rather than only in distribution: given the same seed, both
-implementations must return identical tamper counts, identical `reached_sig` flags and
-identical effect sizes.
+No change was made to what the procedure does. In particular, the random number calls are made in the same order and with the same arguments as in the reference, which makes the equivalence checkable exactly rather than only in distribution: given the same seed, both implementations must return identical tamper counts, identical `reached_sig` flags and identical effect sizes.
 
-`verify_optimised_implementations.R` checks exactly that for all sixteen (setting x
-strategy x prevalence) combinations and fails if any comparison is inexact. At the time of
-writing it reports 16 of 16 exact with an overall speedup of about 35x; the
-per-strategy figures range from roughly 10x to 95x, largest where the reference did the
-most data-frame work per step.
+`verify_optimised_implementations.R` checks exactly that for all sixteen (setting x strategy x prevalence) combinations and fails if any comparison is inexact. At the time of writing it reports 16 of 16 exact with an overall speedup of about 35x; the per-strategy figures range from roughly 10x to 95x, largest where the reference did the most data-frame work per step.
 
 ```bash
 Rscript verify_optimised_implementations.R
 ```
-
-A rejected optimisation, recorded because the reasoning was wrong. An earlier version
-of this file added a stall guard: if the *p*-value had not improved for some number of
-consecutive steps, the iteration was abandoned early on the argument that a greedy
-procedure which has stopped making progress will not start again, and that this could not
-affect any reported quantity because an abandoned iteration is recorded as never attaining
-significance and non-attaining iterations are censored in every summary. The second half of
-that argument is true; the first half is not. These strategies are not monotone in *p*, and
-their trajectories contain genuine plateaus: in the 2x2 dropping condition at prevalence
-.05, around 2% of iterations sat on a plateau for more than fifty steps and then crossed
-the threshold, at counts of about eighty. A stall guard therefore changes `reached_sig`,
-which is precisely the quantity that matters. It was removed. The runtime it was meant to
-save is bounded anyway by `tamper_loop_guard()`, and is affordable at the speeds above.
 
 # References
 
