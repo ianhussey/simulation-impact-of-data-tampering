@@ -11,3 +11,7 @@ data/simulation_condition_swapping.rds
 # Quarto render artefacts: any directory ending in _files (figures, libs) is
 # regenerated on every render and should not be versioned
 *_files/
+
+# Memoised summary of the simulation caches, rebuilt automatically whenever those
+# caches change (see the manuscript setup chunk). Derived, so not versioned.
+communications/manuscript/summary_memo.rds

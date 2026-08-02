@@ -208,7 +208,7 @@
 \IfFileExists{xurl.sty}{\usepackage{xurl}}{} % add URL line breaks if available
 \urlstyle{same}
 \hypersetup{
-  pdftitle={Very little data tampering is needed to manufacture statistically significant results: A Monte Carlo simulation study},
+  pdftitle={Very little data tampering is needed to produce statistically significant results: A Monte Carlo simulation},
   pdfauthor={Ian Hussey},
   colorlinks=true,
   linkcolor={blue},
@@ -222,9 +222,8 @@
 \begin{document}
 
 \begin{frontmatter}
-\title{Very little data tampering is needed to manufacture statistically
-significant results:\\
-A Monte Carlo simulation study}
+\title{Very little data tampering is needed to produce statistically
+significant results: A Monte Carlo simulation}
 \author[1]{Ian Hussey%
 \corref{cor1}%
 }
@@ -236,33 +235,35 @@ A Monte Carlo simulation study}
 
         
 \begin{abstract}
-Fabricating a statistically significant result does not require
-fabricating a dataset. I simulate a dishonest analyst who starts from
-data generated under the true null hypothesis and alters, deletes, or
-invents one data point at a time, always the point that most helps,
-re-running the test after every change until \emph{p} \textless{} .05. I
-formalize this as a family of iterative algorithmically-greedy tampering
-strategies (dropping cases, switching condition labels, re-pairing
-values, duplicating cases, fabricating cases, and replacing cases)
-across three common designs: the two-group mean difference (Student's
-t-test), the Pearson correlation, and the 2x2 association (chi-square
-test). Each strategy runs until significance is reached or further
-tampering becomes structurally impossible, and the estimand is the
-effort required: the number of tampered data points, both absolutely and
-as a proportion of the sample. Two findings recur. First, effort is
-small in absolute terms and falls steeply in relative terms as samples
-grow. Median tamper counts rise only slowly with sample size, from a
-handful of data points at N = 20 to a few dozen at N = 400, so expressed
-as a share of the sample the effort drops by roughly an order of
-magnitude. Large studies are therefore proportionally easier to corrupt,
-not safer. Second, the strategy that is hardest to detect in the
-two-group design, because it leaves every univariate distribution
-untouched (condition switching), is also among the cheapest; its
-correlation analogue (value re-pairing) is cheaper than duplication and
-costs about as much as unprincipled case deletion, while being invisible
-to any check of either variable alone. I conclude that fabrication and
-falsification of results typically requires a worryingly small amount of
-actual data tampering.
+Simulation studies to date have examined the impact of Questionable
+Research Practices on the false positive rate of common statistical
+inference tests (e.g., Stefan \& Schonbrödt, 2023), but not the impact
+of unquestionably undesirable research practices, such as fabrication
+and falsification. While any result can be obtained through sufficient
+fabrication or falsification, we have little insight into how much of
+either is needed to generate statistically significant results under a
+null hypothesis. This article therefore simulates data generated under
+the true null hypothesis and alters, deletes, or invents one data point
+at a time, targeting the data points that most oppose the desired
+result, and re-running the test after every change until it is
+significant in the intended direction. Six tampering strategies
+(dropping cases, switching condition labels, re-pairing values,
+duplicating, fabricating, and replacing cases) are applied to three
+common tests: the independent \emph{t}-test, Pearson \emph{r}
+correlation, and the Chi-square test for a 2x2 contingency table.
+Results demonstrate that, in small samples, only a small absolute number
+of tampers are typically needed to obtain significant results. In large
+samples, although the absolute number of tampers needed grows, the
+proportion of the sample needing to be tampered with to obtain
+significance falls rapidly. The strategies that alter no recorded value,
+and so are plausibly hardest to detect, are among the most effective.
+Critically, unjustifiably deleting inconvenient data points, which
+researchers rate as far more defensible than invention, is no less
+dangerous than outright fabrication: both manufacture false positives
+from null data reliably, and at comparable and very small cost (e.g.,
+median tampers of 5-10\% at moderate sample sizes across tests).
+Fabricating and falsifying results therefore requires a worryingly small
+amount of actual data tampering.
 \end{abstract}
 
 
@@ -308,8 +309,8 @@ falsification to 4.2\%
 biostatisticians in a US national survey had been asked, at least once
 in the preceding five years, to remove or alter data records to better
 support a research hypothesis (\citeproc{ref-wang_researcher_2018}{Wang
-et al., 2018}). These are not the rates of a vanishing phenomenon, and
-each is likely a lower bound of the true prevalence.
+et al., 2018}). These are not the rates of a vanishingly rare
+phenomenon, and each is likely a lower bound of the true prevalence.
 
 Prevalence, though, is only half the question. The other half is how
 `effective' such data manipulations actually are. Here, the literature
@@ -322,8 +323,8 @@ convey the same intuition that a handful of unjustified changes to the
 data is enough to produce statistically significant results in many
 cases, but neither is a systematic assessment. The field has no
 systematic account of how much tampering a given strategy requires,
-whether that requirement grows with sample size, how the strategies
-compare with one another, or how large an effect they leave behind.
+whether that requirement grows with sample size, or how the strategies
+compare with one another.
 
 For the ambiguous end of the continuum of merely `questionable' research
 practices, that gap has been filled. Stefan \& Schönbrodt
@@ -368,18 +369,19 @@ given set of practices actually are, how little effort they take, and
 how much bias they inject, likely represents important information to
 dissuading their practice.
 
-This perspective is an explicitly social-epistemological one, which
-understands researcher behaviors as a set of evolving community norms
-rather than moral acts. Equally, this perspective is concerned only with
-the undesirable statistical consequences of certain researcher
-behaviors, but is agnostic to researchers' intent when taking them. With
-that being said, at a human level, it is easier to imagine a researcher
-who deletes a small number of data points to `reveal' an effect they
-strongly believe is there, lying just under the surface of the data,
-when it is not (e.g., cases of `qualitative exclusion strategies':
-Schiller et al. (\citeproc{ref-schiller_addendum_2018}{2018})) than to
-imagine scientists simply making up datasets wholesale {[}although the
-latter does occur; Verfaellie \& McGwin
+In this research, I explicitly adopt a social-epistemological approach,
+which understands such researcher behaviors as a set of evolving
+community norms rather than (im)moral acts. Equally, this perspective is
+concerned only with the undesirable statistical consequences of certain
+researcher behaviors, but is agnostic to researchers' intent when taking
+them. With that being said, at a human level, it is easier to imagine a
+researcher who deletes a small number of data points to `reveal' an
+effect they strongly believe is there, lying just under the surface of
+the data, when it is not (e.g., cases of `qualitative exclusion
+strategies': Schiller et al.
+(\citeproc{ref-schiller_addendum_2018}{2018})) than to imagine
+scientists simply making up datasets wholesale {[}although the latter
+does occur; Verfaellie \& McGwin
 (\citeproc{ref-verfaellie_case_2011}{2011}){]}, despite both strategies
 producing false-positive results. Regardless of whether these two
 scenarios can be equated in their intent, it is an open question whether
@@ -388,34 +390,41 @@ relatively robust or fragile most results are to modifications of only a
 small number of data points (although see
 \citeproc{ref-spiess_scientific_2024}{Spiess et al., 2024}).
 
-Some definition matters are worth considering, insofar as they informed
-which tampering strategies were simulated. The US government's Office of
-Research Integrity provides influential definitions of research
-misconduct and its forms
+Some definitional matters are worth considering, insofar as they
+informed which tampering strategies were simulated. The US government's
+Office of Research Integrity provides influential definitions of
+research misconduct and its forms
 (\citeproc{ref-steneck_introduction_2007}{Steneck, 2007}). According to
 the ORI definitions, fabrication is ``making up data or results and
-recording or reporting them''. This is represented by the the
-fabrication, duplication and replacement strategies simulated here,
-which add data points. Falsification is ``manipulating research
-materials, equipment, or processes, or changing or omitting data or
-results such that the research is not accurately represented in the
-research record''. This is represented by the dropping strategy (which
-omits observations) and the condition switching and re-pairing
-strategies (which change labels and pairings without adding or deleting
-anything). The taxonomy that carries the regulatory and moral weight
-thus classifies by mechanism: was the data point invented, or was it
-altered or omitted? Of course, the line is not necessarily clear here,
-given that an altered data point is equivalent to a removed data point
-plus a newly added data point.
+recording or reporting them''. This is represented by the fabrication,
+duplication and replacement strategies simulated here, which add data
+points. Falsification is ``manipulating research materials, equipment,
+or processes, or changing or omitting data or results such that the
+research is not accurately represented in the research record''. This is
+represented by the dropping strategy (which omits observations) and the
+condition switching and re-pairing strategies (which change labels and
+pairings without adding or deleting anything). The taxonomy that carries
+the regulatory and moral weight thus classifies by mechanism: was the
+data point invented, or was it altered or omitted? Of course, the line
+is not necessarily clear here, given that an altered data point is
+equivalent to a removed data point plus a newly added data point.
 
 In this article I do three things. First, I formalize data tampering as
-a family of iterative greedy algorithms (dropping, condition switching,
+a family of iterative algorithms (dropping, condition switching,
 re-pairing, duplication, fabrication, and replacement) applied to three
 of the most common elementary designs: the two-group mean difference
 (Student's \emph{t}-test), the Pearson correlation, and the 2×2
-association (chi-square test). Second, I estimate the effort each
-strategy requires, with the full design specified under the ADEMP
-framework (\citeproc{ref-morris_using_2019}{Morris et al., 2019};
+association (chi-square test). One caveat attaches to the strategies
+that invent values (fabrication and replacement): once an analyst is
+willing to make up data, the invented values can be of any extremity, so
+any particular choice of fabricated values is one point in a large space
+of experimenter degrees of freedom trading efficiency per fabricated
+point against plausibility. The fabricated values simulated here are
+deliberately aggressive, and the relative cost of these strategies is
+therefore harder to benchmark than that of strategies that only delete
+or relabel existing data. Second, I estimate the effort each strategy
+requires, with the full design specified under the ADEMP framework
+(\citeproc{ref-morris_using_2019}{Morris et al., 2019};
 \citeproc{ref-siepe_simulation_2024}{Siepe et al., 2024}) and every
 estimate accompanied by a Monte Carlo standard error. I invert the
 design used in previous simulations to understand the impact of
@@ -432,8 +441,8 @@ without any tampering budget, the complete distribution of required
 effort is observed, and the proportion of datasets exceeding any given
 budget is recovered afterwards from the same runs. Third, I show that
 the effort required is small, that it does not grow with sample size in
-proportional terms, and that the strategies hardest to detect are among
-the cheapest.
+proportional terms, and that the strategies that are likely hardest to
+detect are among the cheapest.
 
 \section{Methods}\label{methods}
 
@@ -448,15 +457,16 @@ extended rationale are available in the project repository (see
 
 \subsection{Aims}\label{aims}
 
-The study is descriptive: there is no closed-form benchmark for the
-minimum number of tampered points needed to manufacture significance,
-because that number is a property of a tampering algorithm applied to
-random data, not an estimator of a population parameter. For each
-strategy and sample size I aim to estimate (1) how many tampered data
-points are required to first reach \emph{p} \textless{} .05, absolutely
-and as a proportion of the sample, and how this scales with sample size;
-(2) the proportion of datasets requiring more than a given share of the
-sample (post hoc budgets of 10\% and 25\%), and the proportion for which
+The study is descriptive: there is no trivial, well-established
+closed-form benchmark for the minimum number of tampered points needed
+to manufacture significance --- that number is a property of a tampering
+algorithm applied to random data, not an estimator of a population
+parameter --- and I did not attempt to derive one. For each strategy and
+sample size I aim to estimate (1) how many tampered data points are
+required to first reach \emph{p} \textless{} .05, absolutely and as a
+proportion of the sample, and how this scales with sample size; (2) the
+proportion of datasets requiring more than a given share of the sample
+(post hoc budgets of 10\% and 25\%), and the proportion for which
 significance is never attained at all; and (3) how the strategies
 compare on these measures.
 
@@ -490,24 +500,48 @@ in each continuous setting and 54 in the binary setting, each replicated
 
 \subsection{Estimands}\label{estimands}
 
-The estimand is \texttt{tampers\_needed}: the number of tampering
-operations applied before the test first returns \emph{p} \textless{}
-.05, reported both as a count and as a proportion of the sample. The
-compendia also record the effect size of each final tampered dataset,
-but those are not analysed here: this article is concerned with the
-effort required to manufacture a false positive rather than with the
+The estimand is \texttt{tampers\_needed}: the number of tampered data
+points applied before the test first returns a significant result in the
+intended direction, reported both as a count and as a proportion of the
+sample. The compendia also record the effect size of each final tampered
+dataset, but those are not analysed here: this article is concerned with
+the effort required to manufacture a false positive rather than with the
 size of the effect that results.
+
+Counting effort requires a convention for what one ``tampered data
+point'' is, and cross-strategy comparisons depend partly on that
+convention. The convention used throughout is the number of case records
+created, deleted, or altered by an operation: dropping a case counts
+one; switching one case's condition label counts one; a re-pairing swap
+counts two, because two cases' \emph{y}-values change; fabricating a
+pair of cases counts two; replacing one case's value counts one.
+Alternative accountings exist --- counting operations performed (under
+which a re-pairing swap would count one) or cells of the data matrix
+edited (under which a dropped case in the correlation setting would
+count two, its \emph{x} and its \emph{y}) --- and the relative ordering
+of strategies, particularly between label-based and value-based
+operations, shifts somewhat between them. The per-case convention is
+used because a case is the unit an analyst edits, but comparisons
+between strategies whose operations differ in kind should be read with
+the convention in mind.
 
 \subsection{Methods (tampering
 strategies)}\label{methods-tampering-strategies}
 
-Every strategy is an iterative greedy procedure: generate a null
-dataset, test it, and while non-significant, apply one tampering
-operation targeting the data point most opposed to the desired result,
-then re-test. Table~\ref{tbl-strategies} defines the operations. All
-strategies push toward a positive effect by convention; tests are
-two-sided at \(\alpha = .05\) (equal-variance \emph{t}-test; Pearson
-correlation test; chi-square test without continuity correction).
+Every strategy is an iterative procedure: generate a null dataset, test
+it, and while the desired result has not been reached, apply one
+tampering operation targeting data points opposed to it, then re-test.
+Table~\ref{tbl-strategies} defines the operations. All strategies push
+toward a positive effect by convention; tests are two-sided at
+\(\alpha = .05\) (equal-variance \emph{t}-test; Pearson correlation
+test; chi-square test without continuity correction). Success is
+sign-consistent: an iteration counts as significant only when \emph{p}
+\textless{} .05 \emph{and} the manufactured effect is in the intended
+direction. A two-sided test is also significant, in roughly 2.5\% of
+null datasets, with the effect in the \emph{wrong} direction; such
+datasets are not counted as zero-effort successes, and wrong-direction
+significance encountered in passing during tampering does not stop the
+procedure.
 
 \begin{longtable}[]{@{}
   >{\raggedright\arraybackslash}p{(\linewidth - 6\tabcolsep) * \real{0.2159}}
@@ -568,36 +602,58 @@ Replace the most discordant case's \emph{y} with a concordant
 high-leverage value & (coincides with fabrication) \\
 \end{longtable}
 
-The label-switching column deserves emphasis because of its forensic
-properties: condition switching leaves every univariate distribution
-untouched, and re-pairing preserves both marginal distributions
-\emph{exactly} (the set of \emph{y}-values is only permuted), so neither
-is detectable by any univariate check. Swapping \emph{entire}
-conditions, as opposed to individual cases, is handled analytically
-rather than simulated: it merely doubles the directional false-positive
-rate to \(\alpha\), adding \(\tfrac{1}{2}\alpha\).
+The strategies differ in how the targeted data point is chosen, and only
+replacement is greedy in the strict sense of optimizing the
+\emph{p}-value at each step: it tries both candidate replacements and
+keeps whichever most lowers \emph{p}. Dropping and re-pairing target the
+most extreme or discordant case, a heuristic that usually but not always
+coincides with the \emph{p}-optimal move; condition switching alternates
+direction to keep group sizes balanced rather than choosing the better
+of the two available moves; and duplication samples at random from the
+most favourable decile. The effort estimates therefore characterize
+these specific, deliberately simple procedures: a more calculating
+tamperer could do somewhat better and a clumsier one worse, so the
+estimates should be read as typical costs of naive-but-directed
+tampering rather than as minima.
 
-No tampering budget is imposed. Each strategy runs until significance is
-reached or a structural limit is hit, such removing all datat under
-dropping. A loop guard is included at 10× the sample size as a
-termination backstop (e.g., a one-step greedy cannot cross the two-sided
-test's \(p \approx 1\) valley when the initial dataset happens to show a
-strong effect in the \emph{opposite} direction; such iterations, well
-under 1\% of runs, are recorded as never attaining significance).
-Because the full unbudgeted counts are recorded, the proportion of
-datasets exceeding \emph{any} tampering budget is computable after the
-fact; I report budgets of 10\% and 25\% of the sample.
+The label-switching row deserves emphasis because of its forensic
+properties: condition switching alters no recorded value, only group
+labels, and re-pairing preserves both marginal distributions
+\emph{exactly} (the set of \emph{y}-values is only permuted), so neither
+leaves a trace in the distribution of any single variable. Swapping
+\emph{entire} conditions, as opposed to individual cases, is handled
+analytically rather than simulated: it merely doubles the directional
+false-positive rate to \(\alpha\), adding \(\tfrac{1}{2}\alpha\).
+
+No tampering budget is imposed. Each strategy runs until a significant
+result in the intended direction is reached or a structural limit is
+hit, such as removing all data under dropping. A loop guard is included
+at 10× the sample size as a termination backstop, needed because
+one-step tampering can stall --- most notably when a dataset shows a
+strong effect in the \emph{opposite} direction, which must be traversed
+through the two-sided test's \(p \approx 1\) valley. Iterations stopped
+by the guard are flagged separately from structural limits in the
+recorded results and are recorded as never attaining significance. They
+are rare and confined to the smallest samples: only 4 of the 144
+conditions contain any, all at \(N \leq\) 50, with a maximum of 6.85\%
+of runs in a single condition. Stalling can also end an iteration
+without the guard, when a strategy runs out of improving moves; this is
+the more common outcome and is reported with the results. Because the
+full unbudgeted counts are recorded, the proportion of datasets
+exceeding \emph{any} tampering budget is computable after the fact; I
+report budgets of 10\% and 25\% of the sample.
 
 \subsection{Performance measures and Monte Carlo
 uncertainty}\label{performance-measures-and-monte-carlo-uncertainty}
 
-An iteration that never attains significance has no finite tamper count
-(i.e., is right-censored). All percentile-based summaries (median, 95\%
-prediction interval) are therefore computed over all iterations with the
-never-significant ones ranked above every finite count; a percentile
-falling among them is reported as \emph{never} rather than being
-silently replaced by the survivors' percentile, which would answer a
-different question (``given that tampering worked, how many edits?'')
+An iteration that never attains a significant result in the intended
+direction (hereafter, never attains significance) has no finite tamper
+count (i.e., is right-censored). All percentile-based summaries (median,
+95\% prediction interval) are therefore computed over all iterations
+with the never-significant ones ranked above every finite count; a
+percentile falling among them is reported as \emph{never} rather than
+being silently replaced by the survivors' percentile, which would answer
+a different question (``given that tampering worked, how many edits?'')
 and bias the effort downward. The mean cannot be computed this way at
 all (the censored counts are unbounded above), so means are reported
 only as conditional-on-success skew diagnostics. Two intervals are used.
@@ -611,8 +667,14 @@ re-tamper a case already tampered with, can exceed 1.
 
 Every reported estimate carries a Monte Carlo standard error: binomial
 for proportions, closed-form for means, and nonparametric bootstrap for
-medians (\citeproc{ref-morris_using_2019}{Morris et al., 2019};
-\citeproc{ref-siepe_simulation_2024}{Siepe et al., 2024}). In tables,
+medians and for the bounds of the 95\% prediction intervals
+(\citeproc{ref-morris_using_2019}{Morris et al., 2019};
+\citeproc{ref-siepe_simulation_2024}{Siepe et al., 2024}). The number of
+replications, K = 10,000 per condition, was chosen for the Monte Carlo
+precision it yields rather than by convention: it bounds the MCSE of any
+reported proportion at \(\sqrt{.5 \times .5 / 10000} = .005\), and the
+resulting bootstrap MCSEs of the median tamper counts are small
+fractions of one data point (Table~\ref{tbl-results}). In tables,
 decimal places are set from the MCSE (two significant figures, with the
 estimate rounded to match) rather than fixed per table. Simulations were
 parallelized with reproducible L'Ecuyer--CMRG streams, so results are
@@ -637,8 +699,9 @@ datasets never attained significance, so the upper quartile has no
 finite value and the bar is drawn to the top of the data range. The
 lower panel expresses effort relative to the \emph{original} sample
 size, so strategies that append cases or re-tamper the same case can
-exceed 1. Strategies are ordered by median proportion tampered. K =
-10,000 iterations per condition.}
+exceed 1. Strategies are ordered by median proportion tampered, from the
+most expensive on the left to the cheapest on the right. K = 10,000
+iterations per condition.}
 
 \end{figure}%
 
@@ -687,21 +750,23 @@ grow}\label{effort-is-small-and-falls-as-a-share-of-the-sample-as-studies-grow}
 
 Across both continuous settings the absolute number of tampered data
 points needed to manufacture significance grows with sample size, but
-only slowly: median counts run from 2--10 points at \(N = 20\) to 4--24
-at \(N = 400\), a twentyfold increase in sample size met by roughly a
-threefold increase in effort (Figure~\ref{fig-meandiff},
+only slowly: median counts run from 2--10 points at \(N = 20\) to 5--26
+at \(N = 400\), a twentyfold increase in sample size met by only a 2.0-
+to 3.2-fold increase in effort (Figure~\ref{fig-meandiff},
 Figure~\ref{fig-correlation}). Expressed as a share of the sample,
 effort therefore falls: from 10.0\%--50.0\% at \(N = 20\) to
-1.0\%--6.0\% at \(N = 400\), a reduction of between 6.7- and 10.0-fold
+1.2\%--6.5\% at \(N = 400\), a reduction of between 6.2- and 10.0-fold
 depending on the strategy. Manufacturing a false positive is not merely
 no harder in a large study than in a small one; proportionally it is
 considerably easier. The intuition that a large sample is robust to a
 few altered observations is exactly backwards. Framed as a budget: at
 \(N = 400\), the proportion of datasets that would require more than
-10\% of the sample to be tampered is at most 21.4\% for the least
+10\% of the sample to be tampered is at most 22.2\% for the least
 efficient continuous-setting strategy, and for the cheapest it is 0.0\%.
-Only 21.4\% of datasets resist the least effective strategy altogether
-at that sample size.
+That worst case is re-pairing, and it is not a matter of expense: 22.2\%
+of those datasets are ones the strategy fails on entirely, for reasons
+taken up below. Every other continuous strategy reaches significance in
+essentially every dataset at that sample size.
 
 The 2×2 setting is the partial exception that illustrates the mechanism
 (Figure~\ref{fig-2x2}). With a rare outcome (prevalence .05) and small
@@ -712,24 +777,48 @@ first. Where tampering is structurally possible, rare outcomes are cheap
 to tip, because each fabricated or relabelled case moves the test
 statistic disproportionately.
 
-\subsection{The stealthiest strategies are among the
-cheapest}\label{the-stealthiest-strategies-are-among-the-cheapest}
+\subsection{Strategies that are plausibly hardest to detect are among
+the
+cheapest}\label{strategies-that-are-plausibly-hardest-to-detect-are-among-the-cheapest}
 
 Strategies in every figure are ordered by their median proportion
-tampered, computed from the data at render time. The forensically
-critical result is where the label-switching family sits in that
-ordering. In the two-group design, condition switching is the second
-cheapest of the five strategies (median 5 switched labels at
-\(N = 100\)) despite leaving every univariate distribution untouched.
-Its correlation analogue, re-pairing (median 8 re-paired values at
+tampered, computed from the data at render time, running from the most
+expensive strategy on the left to the cheapest on the right. The
+forensically critical result is where the label-switching family sits in
+that ordering. In the two-group design, condition switching is the
+second cheapest of the five strategies (median 5 switched labels at
+\(N = 100\)) despite altering no recorded value, only condition labels,
+and it succeeds in every dataset at every sample size examined. In the
+2×2 setting the corresponding strategy is the cheapest of the three. Its
+correlation analogue, re-pairing (median 8 re-paired values at
 \(N = 100\)), is not the cheapest in its setting. High-leverage
 replacement and fabrication are cheaper, but it costs about the same as
 unprincipled case deletion and less than duplication, while preserving
-both marginal distributions exactly. Neither manipulation is detectable
-by any check of a variable in isolation; only the joint structure is
-disturbed. Efficiency and detectability are therefore not in tension for
-the would-be fraudster: in each setting, at least one of the cheapest
-strategies is also among the least visible.
+both marginal distributions exactly. Neither manipulation alters
+anything that a check of one variable in isolation could flag; only the
+joint structure is disturbed. This is, however, a procedural argument
+for stealth, of the kind asserted by Chambers
+(\citeproc{ref-chambers_seven_2017}{2017}), rather than a measured one:
+the statistical detectability of these manipulations by multivariate or
+forensic tools was not examined here and requires dedicated study.
+
+Re-pairing carries one important qualification that the other strategies
+do not. It fails outright in 21.8\%--30.8\% of datasets, at every sample
+size, and the failures are a property of the greedy rule rather than of
+the data running out. The procedure gives up when the most discordant
+case already holds the \emph{y}-value matching its own \emph{x}-rank, or
+when the indicated swap would not increase \emph{r}; at that point it
+stops with the correlation positive but short of significance, typically
+after only a handful of swaps. A tamperer willing to consider swaps
+beyond the single rank-matched one would not be stopped this way, so
+this is a limitation of the specific procedure simulated, not evidence
+that re-pairing is intrinsically unreliable. Taken together, then:
+efficiency and likely detectability are not in tension for the would-be
+fraudster, since in each setting at least one of the cheapest strategies
+is also among the least visible to routine univariate checks --- cleanly
+so in the two-group and 2×2 designs, and in the correlation design for
+the roughly three-quarters of datasets on which this implementation of
+re-pairing succeeds at all.
 
 \clearpage
 \begin{landscape}
@@ -742,53 +831,57 @@ strategies is also among the least visible.
 size (total N = 100), by setting and strategy. Values in parentheses are
 +/-1 Monte Carlo standard error. Never is the proportion of datasets for
 which significance was never attained, tampering having run to a
-structural limit. The two budget columns are post hoc tampering budgets:
-the proportion of datasets needing more than that share of the sample
-tampered, never-significant datasets exceeding every budget by
-definition. The median is computed over all iterations with
-never-significant ones ranked above every finite count, and is also
-given as a proportion of the sample (Prop.). PI is the 95\% prediction
-interval, the 2.5th-97.5th percentile of the tamper counts across
-iterations; the figures show interquartile ranges instead, for the
-reason given in the Methods. D/f/r denotes the duplication, fabrication
-and replacement strategies, which coincide for binary data.}
+structural limit or having stalled with no improving move available; the
+latter is what drives the high value for correlation re-pairing. The two
+budget columns are post hoc tampering budgets: the proportion of
+datasets needing more than that share of the sample tampered,
+never-significant datasets exceeding every budget by definition. The
+median is computed over all iterations with never-significant ones
+ranked above every finite count, and is also given as a proportion of
+the sample (Prop.). PI is the 95\% prediction interval, the 2.5th-97.5th
+percentile of the tamper counts across iterations; its bounds are
+themselves Monte Carlo estimates, so each bound carries its own
+bootstrap MCSE in parentheses. The figures show interquartile ranges
+instead, for the reason given in the Methods. D/f/r denotes the
+duplication, fabrication and replacement strategies, which coincide for
+binary data.}
 
 \tabularnewline
 
 \toprule
 Setting & Strategy & Never & > 10\% & > 25\% & Median & 95\% PI & Prop.\\
 \midrule
- & Condition switching & 0.000 (0.000) & 0.020 (0.001) & 0.000 (0.000) & 5.0 (0.0) & {}[0, 10] & 0.050 (0.000)\\
+ & Condition switching & 0.000 (0.000) & 0.044 (0.002) & 0.000 (0.000) & 5.0 (0.0) & {}[1.0 (0.5), 11.0 (0.1)] & 0.050 (0.000)\\
 \nopagebreak
- & Dropping & 0.000 (0.000) & 0.414 (0.005) & 0.001 (0.000) & 9.0 (0.0) & {}[0, 20] & 0.090 (0.000)\\
+ & Dropping & 0.000 (0.000) & 0.440 (0.005) & 0.009 (0.001) & 10.0 (0.1) & {}[1.0 (0.5), 23.0 (0.2)] & 0.100 (0.001)\\
 \nopagebreak
- & Duplication & 0.000 (0.000) & 0.659 (0.005) & 0.081 (0.003) & 14.0 (0.0) & {}[0, 28] & 0.140 (0.000)\\
+ & Duplication & 0.000 (0.000) & 0.685 (0.005) & 0.107 (0.003) & 14.0 (0.0) & {}[2.0 (0.9), 32.0 (0.0)] & 0.140 (0.000)\\
 \nopagebreak
- & Fabrication & 0.000 (0.000) & 0.625 (0.005) & 0.001 (0.000) & 12.0 (0.6) & {}[0, 22] & 0.120 (0.006)\\
+ & Fabrication & 0.000 (0.000) & 0.651 (0.005) & 0.016 (0.001) & 14.0 (0.0) & {}[2.0 (0.9), 24.0 (0.0)] & 0.140 (0.000)\\
 \nopagebreak
-\multirow[t]{-4}{*}[\normalbaselineskip]{\raggedright\arraybackslash Mean difference} & Replacement & 0.000 (0.000) & 0.062 (0.002) & 0.000 (0.000) & 4.0 (0.0) & {}[0, 13] & 0.040 (0.000)\\
+\multirow[t]{-4}{*}[\normalbaselineskip]{\raggedright\arraybackslash Mean difference} & Replacement & 0.000 (0.000) & 0.088 (0.003) & 0.004 (0.001) & 4.0 (0.0) & {}[1.0 (0.5), 16.0 (0.4)] & 0.040 (0.000)\\
 \cmidrule{1-8}\pagebreak[0]
- & Dropping & 0.000 (0.000) & 0.345 (0.005) & 0.001 (0.000) & 8.0 (0.0) & {}[0, 19] & 0.080 (0.000)\\
+ & Dropping & 0.000 (0.000) & 0.370 (0.005) & 0.006 (0.001) & 9.0 (0.2) & {}[1.0 (0.3), 21.0 (0.4)] & 0.090 (0.002)\\
 \nopagebreak
- & Duplication & 0.000 (0.000) & 0.638 (0.005) & 0.102 (0.003) & 13.0 (0.2) & {}[0, 32] & 0.130 (0.002)\\
+ & Duplication & 0.000 (0.000) & 0.662 (0.005) & 0.127 (0.003) & 14.0 (0.0) & {}[1.0 (0.3), 37.0 (0.4)] & 0.140 (0.000)\\
 \nopagebreak
- & Fabrication & 0.000 (0.000) & 0.000 (0.000) & 0.000 (0.000) & 4.0 (0.0) & {}[0, 6] & 0.040 (0.000)\\
+ & Fabrication & 0.000 (0.000) & 0.000 (0.000) & 0.000 (0.000) & 4.0 (0.0) & {}[2.0 (0.6), 6.0 (0.0)] & 0.040 (0.000)\\
 \nopagebreak
- & Re-pairing & 0.233 (0.004) & 0.354 (0.005) & 0.233 (0.004) & 8.0 (0.0) & {}[0, never] & 0.080 (0.000)\\
+ & Re-pairing & 0.239 (0.004) & 0.375 (0.005) & 0.239 (0.004) & 8.0 (0.1) & {}[2.0 (0.6), never] & 0.080 (0.001)\\
 \nopagebreak
-\multirow[t]{-4}{*}[\normalbaselineskip]{\raggedright\arraybackslash Correlation} & Replacement & 0.000 (0.000) & 0.000 (0.000) & 0.000 (0.000) & 3.0 (0.0) & {}[0, 6] & 0.030 (0.000)\\
+\multirow[t]{-4}{*}[\normalbaselineskip]{\raggedright\arraybackslash Correlation} & Replacement & 0.000 (0.000) & 0.000 (0.000) & 0.000 (0.000) & 3.0 (0.0) & {}[1.0 (0.3), 6.0 (0.0)] & 0.030 (0.000)\\
 \cmidrule{1-8}\pagebreak[0]
- & Condition switching & 0.006 (0.001) & 0.140 (0.003) & 0.034 (0.002) & 5.0 (0.0) & {}[0, 30] & 0.050 (0.000)\\
+ & Condition switching & 0.006 (0.001) & 0.146 (0.004) & 0.034 (0.002) & 5.0 (0.0) & {}[1.0 (0.1), 30.0 (0.1)] & 0.050 (0.000)\\
 \nopagebreak
- & Dropping & 0.057 (0.002) & 0.735 (0.004) & 0.445 (0.005) & 25.0 (0.5) & {}[0, never] & 0.250 (0.005)\\
+ & Dropping & 0.076 (0.003) & 0.757 (0.004) & 0.467 (0.005) & 25.0 (0.0) & {}[1.0 (0.1), never] & 0.250 (0.000)\\
 \nopagebreak
-\multirow[t]{-2}{*}[\normalbaselineskip]{\raggedright\arraybackslash 2x2, prev. 0.05} & D/f/r & 0.006 (0.001) & 0.617 (0.005) & 0.032 (0.002) & 12.0 (0.5) & {}[0, 26] & 0.120 (0.005)\\
+\multirow[t]{-2}{*}[\normalbaselineskip]{\raggedright\arraybackslash 2x2, prev. 0.05} & D/f/r & 0.006 (0.001) & 0.639 (0.005) & 0.044 (0.002) & 13.0 (0.0) & {}[1.0 (0.1), 28.0 (0.4)] & 0.130 (0.000)\\
 \cmidrule{1-8}\pagebreak[0]
- & Condition switching & 0.000 (0.000) & 0.263 (0.004) & 0.000 (0.000) & 7.0 (0.0) & {}[0, 15] & 0.070 (0.000)\\
+ & Condition switching & 0.000 (0.000) & 0.290 (0.005) & 0.000 (0.000) & 8.0 (0.5) & {}[0.0 (0.5), 16.0 (0.5)] & 0.080 (0.005)\\
 \nopagebreak
- & Dropping & 0.000 (0.000) & 0.629 (0.005) & 0.040 (0.002) & 13.0 (0.0) & {}[0, 27] & 0.130 (0.000)\\
+ & Dropping & 0.000 (0.000) & 0.656 (0.005) & 0.061 (0.002) & 13.0 (0.2) & {}[0.0 (0.5), 29.0 (0.1)] & 0.130 (0.002)\\
 \nopagebreak
-\multirow[t]{-2}{*}[\normalbaselineskip]{\raggedright\arraybackslash 2x2, prev. 0.2} & D/f/r & 0.000 (0.000) & 0.788 (0.004) & 0.224 (0.004) & 18.0 (0.2) & {}[0, 35] & 0.180 (0.002)\\
+\multirow[t]{-2}{*}[\normalbaselineskip]{\raggedright\arraybackslash 2x2, prev. 0.2} & D/f/r & 0.000 (0.000) & 0.815 (0.004) & 0.251 (0.004) & 19.0 (0.0) & {}[0.0 (0.5), 38.0 (0.2)] & 0.190 (0.000)\\
 \bottomrule
 
 \end{longtable}
@@ -802,36 +895,90 @@ Setting & Strategy & Never & > 10\% & > 25\% & Median & 95\% PI & Prop.\\
 
 The distance from a null dataset to a statistically significant one is
 short and cheap. The median effort is a small percentage of the sample
-across strategies and settings, and for most strategies a minority of
-datasets require more than 10\% of the sample to be tampered. Where
-tampering fails outright it is because it is structurally impossible
-rather than merely expensive. Specifically, the rare-outcome 2×2 cells,
-where too few hostile cases exist to move the table at all. The share of
-the sample that must be altered falls as samples grow, by roughly an
-order of magnitude across the range examined, so the intuition that a
-large study is protected by its size is not merely optimistic but
-inverted; this extends the finding for \emph{p}-hacking that larger
-samples alone do not reduce its success rate
-(\citeproc{ref-stefan_big_2023}{Stefan \& Schönbrodt, 2023}). The
+across strategies and settings, and at \(N = 400\) no strategy in either
+continuous setting requires more than 10\% of the sample in as many as a
+quarter of datasets. Where tampering fails outright, it fails for one of
+two reasons, and neither is that the tampering was merely expensive. In
+the rare-outcome 2×2 cells too few hostile cases exist to move the table
+at all, so the failure is structural: at prevalence .05 and \(N = 20\),
+60\% of tables cannot be pushed to significance by dropping. In
+correlation re-pairing the failure is algorithmic instead --- the greedy
+rule stalls while the correlation is still positive but short of
+significance --- and it accounts for the largest block of never-attained
+results in the study. The share of the sample that must be altered falls
+as samples grow, by between 6.2- and 10.0-fold across the range
+examined, so the intuition that a large study is protected by its size
+is not merely optimistic but inverted. This extends the finding for
+\emph{p}-hacking that larger samples alone do not reduce its success
+rate (\citeproc{ref-stefan_big_2023}{Stefan \& Schönbrodt, 2023}). The
 strategies that preserve univariate distributions (condition switching
-and re-pairing) are among the most effective. Further research is
-necessary to understand the relative statistical detectability of each
-of these strategies.
+and re-pairing) are among the most effective, and are plausibly also the
+hardest to detect --- though that is a procedural argument rather than a
+tested one, and further research is necessary to understand the relative
+statistical detectability of each of these strategies.
 
-Adding invented cases, deleting inconvenient ones, and relabelling
-existing ones all require a comparable number of edits. The one clause
-of the definitions that unifies them is a consequence criterion rather
-than a mechanism one, such that the research is not accurately
-represented in the research record, and every strategy here satisfies it
-identically. Each produces a result that did not exist before.
+These results give the opening cases their denominator. In the
+vasculitis trial, re-adjudicating the remission status of five patients
+out of 331 (1.5\% of the sample) separated a failed trial from a
+successful one. Nothing there was invented and nothing was deleted: five
+cases were moved from one cell of a 2×2 table to another, which is the
+operation simulated here as label switching in the binary design, and
+the cheapest of the three strategies available in that design (median
+3.8\% of the sample at \(N = 400\) and prevalence .20). Against the
+distributions estimated here, 1.5\% is not an aberration but a typical
+cost: across the continuous-setting strategies at \(N = 400\), the
+median share of the sample that must be tampered lies between 1.2\% and
+6.5\%.
+
+The same reading applies to the deletion cases, such as the post hoc
+exclusions documented by Schiller et al.
+(\citeproc{ref-schiller_addendum_2018}{2018}), in which data points were
+dropped to `reveal' an effect the researchers appear to have genuinely
+believed was there. It is worth being precise about what makes such
+deletion dangerous, because excluding data is not itself misconduct:
+principled outlier exclusion is specified in advance, justified by
+evidence that a measurement is invalid (equipment failure, inattention,
+impossible values), and applied blind to which way the excluded point
+pushes the estimate. The dropping strategy simulated here is its exact
+inverse --- a case is removed \emph{because of} the direction it pushes
+the result, with the test re-run after each removal --- and that single
+reversal is what converts a defensible practice into a reliable
+false-positive generator. At \(N = 100\), it takes the median null
+dataset across the significance threshold by deleting 10.0\% of the
+sample in the two-group design and 9.0\% in the correlation design.
+
+Deleting real observations to reveal an effect one believes is genuinely
+there plausibly feels like a lesser violation of research integrity than
+inventing observations that were never collected, and the survey
+evidence indicates that it is treated as one. The simulations give that
+intuition no support. At the same sample size, fabrication requires
+14.0\% and 4.0\% of the sample in the two settings, both strategies
+succeed on essentially every dataset (Table~\ref{tbl-results}), and both
+yield the same end product: a significant result where no effect exists.
+The gap between their costs, at most 5.0\% of the sample, is a
+difference of degree rather than the difference in kind implied by their
+standing in the survey data, where post hoc exclusion is rated 1.61 out
+of 2 for defensibility and falsification 0.16
+(\citeproc{ref-john_measuring_2012}{John et al., 2012}). In their impact
+on the false-positive rate the two acts are roughly equally dangerous,
+and proportionately very little of either is needed. Whatever
+distinguishes unjustified deletion from fabrication, it is not that
+deletion is the weaker instrument.
+
+The regulatory definitions classify these acts by mechanism (i.e., was
+the data point invented, altered, or omitted
+(\citeproc{ref-steneck_introduction_2007}{Steneck, 2007})), but the
+clause that unifies them is a consequence criterion: that the research
+is not accurately represented in the research record. Every strategy
+simulated here satisfies it identically as each produces a result that
+did not exist before.
 
 The practical asymmetry, then, is not in the acts but in how they are
-regarded. Excluding inconvenient participants is admitted by 38--43\% of
-researchers and rated as close to defensible; falsifying data is
-admitted by under 2\% and rated as indefensible
-(\citeproc{ref-john_measuring_2012}{John et al., 2012}). When
-respondents are given provable deniability, admitted fabrication and
-falsification converge to indistinguishable rates
+regarded. Alongside the defensibility ratings above, excluding
+inconvenient participants is admitted by 38--43\% of researchers and
+falsifying data by under 2\% (\citeproc{ref-john_measuring_2012}{John et
+al., 2012}). When respondents are given provable deniability, admitted
+fabrication and falsification converge to indistinguishable rates
 (\citeproc{ref-gopalakrishna_prevalence_2022}{Gopalakrishna et al.,
 2022}) --- evidence that the gap is substantially one of reporting
 rather than of behaviour. And since perceived seriousness is the
@@ -854,28 +1001,58 @@ future scientific behavior, by raising awareness around how impactful
 even a very small number of data tampers can be.
 
 The strategies employed in this simulation are deliberately simple and
-greedy. Real, detection-aware fraud could plausibly trade efficiency for
-plausibility. However, there are of course many cases of
-detection-unaware fraud caught because of impossible or implausible
-results and data, and the prevalence of undetected, relatively expert
-research fraud is unknown by its very nature. Conversely, several naive
-strategies here leave potentially detectable signatures (e.g., truncated
-distributions after dropping; leverage outliers after fabrication;
-shifted marginal prevalence in the 2×2). Future research is needed to
-examine such detectability via statistical means and modern forensic
-tools (\citeproc{ref-brown_grim_2017}{Brown \& Heathers, 2017};
+myopic, tampering one step at a time with no lookahead. Real,
+detection-aware fraud could plausibly trade efficiency for plausibility.
+However, there are of course many cases of detection-unaware fraud
+caught because of impossible or implausible results and data, and the
+prevalence of undetected, relatively expert research fraud is unknown by
+its very nature. Conversely, several naive strategies here leave
+potentially detectable signatures (e.g., truncated distributions after
+dropping, leverage outliers after fabrication, or shifted marginal
+prevalence in the 2×2). Future research is needed to examine such
+detectability via statistical means and modern forensic tools
+(\citeproc{ref-brown_grim_2017}{Brown \& Heathers, 2017};
 \citeproc{ref-heathers_recovering_2018}{Heathers et al., 2018};
 \citeproc{ref-wilkinson_inspect-sr_2025}{Wilkinson et al., 2025}).
-However, the other distribution-preserving strategies imply that
-relatively statistically invisible tampering is cheap and effective.
-Auditable chain-of-custody for data, such as those employed in medical
-clinical trials that allowed the the US FDA to detect abnormalities in
-the trial, as discussed in the introduction, would be needed to prevent
-or detect such forms of tampering
+However, the distribution-preserving strategies imply that likely
+statistically invisible tampering is cheap and effective. Auditable
+chain-of-custody for data, such as those employed in medical clinical
+trials that allowed the US FDA to detect abnormalities in the trial
+discussed in the introduction, would be needed to prevent or detect such
+forms of tampering
 (\citeproc{ref-us_food_and_drug_administration_center_for_drug_evaluation_and_research_proposal_2026}{U.S.
 Food and Drug Administration, Center for Drug Evaluation and Research,
 2026}). Infrastructure for auditable chain-of-custody is rare in other
 fields.
+
+Several further limitations should be noted. First, the fabrication and
+replacement strategies require a choice of how extreme the invented
+values are, and that choice is essentially arbitrary: once an analyst is
+willing to make up data, values of any extremity are available, so the
+simulated values occupy one point in a large space of experimenter
+degrees of freedom trading efficiency per fabricated point against
+plausibility. The values used here are deliberately aggressive (e.g.,
+intervention scores drawn from a distribution five standard deviations
+above the truth), so the relative cost of these strategies is harder to
+benchmark than that of strategies that only delete or relabel existing
+data, and their position in the effort ordering should be read as a
+property of these particular parameter choices rather than of
+fabrication as such. Second, all data-generating processes here are
+exact nulls. Arguably the more common real-world scenario is a small
+true effect ``topped up'' to find statistical significance, which would
+serve to inflate effect sizes. The effort required should fall steeply
+with the true effect size, and simulating non-null data-generating
+processes would both quantify that and connect these results more
+directly to the questionable-research-practices literature, where a real
+but overestimated effect is the typical outcome. Third, the simulation
+design was not preregistered. This project began in 2022, before the
+publication of the standardized planning and preregistration template
+for simulation studies in psychology
+(\citeproc{ref-siepe_simulation_2024}{Siepe et al., 2024}), and both the
+design and my approach to specifying simulation studies matured
+considerably over that period; the ADEMP specification reported here
+therefore documents the final design transparently rather than
+constraining it in advance.
 
 \section*{Data and code availability}\label{data-and-code-availability}
 \addcontentsline{toc}{section}{Data and code availability}
