@@ -246,7 +246,20 @@ generate_data <- function(n_per_condition,
 # define data analysis function ----
 # slow, because t.test is slow. 
 analyse_data <- function(data) {
-  
+
+  # Guard against a degenerate group. Uncapped dropping can reduce a condition to a single
+  # observation, at which point t.test() aborts with "not enough observations" and takes
+  # the whole future_pmap() run with it. The tampering loop's own guard checks the group
+  # sizes BEFORE a drop, so a group of exactly two passes it and is then reduced to one.
+  # Returning NA here instead ends that iteration cleanly: the while loop's !is.na(p)
+  # condition fails, and the iteration is recorded as never attaining significance, which
+  # is correct -- with one observation in a group no test can be computed, so significance
+  # is not attainable. This matches p_ttest() in compendium_iterative_ttest_optimised.qmd.
+  d <- data[!is.na(data$score), , drop = FALSE]
+  if (sum(d$condition == "control") < 2 || sum(d$condition == "intervention") < 2) {
+    return(tibble(p = NA_real_))
+  }
+
   res_t_test <- t.test(formula = score ~ condition,
                        data = data,
                        var.equal = TRUE,
@@ -269,11 +282,26 @@ compute_bias <- function(data) {
 
   data <- data |> dplyr::filter(!is.na(score))
 
+  # A condition reduced to a single observation contributes no within-group variance, so
+  # the pooled SD is estimated from the other group alone and Hedges' g, while still
+  # numerically computable, is not interpretable. Return NA rather than a number. (The raw
+  # mean difference below remains well defined and is still reported.) This matches
+  # hedges_g_fast() in compendium_iterative_ttest_optimised.qmd.
+  if (sum(data$condition == "control") < 2 || sum(data$condition == "intervention") < 2) {
+    return(tibble(hedges_g = NA_real_,
+                  bias_mean_diff = mean(data$score[data$condition == "intervention"]) -
+                                   mean(data$score[data$condition == "control"])))
+  }
+
   # force factor order so g is computed as intervention - control
   data <- data |> mutate(condition = factor(condition, levels = c("intervention", "control")))
 
+  # ci = NULL skips the confidence interval, which is never used here and which is the only
+  # part that can fail: effectsize computes the interval by numerical optimisation, and for
+  # a heavily tampered dataset with almost no within-group variance (g in the tens) that
+  # optimiser aborts, discarding a perfectly well-defined point estimate.
   hedges_g_value <- tryCatch(
-    as.numeric(effectsize::hedges_g(score ~ condition, data = data)$Hedges_g),
+    as.numeric(effectsize::hedges_g(score ~ condition, data = data, ci = NULL)$Hedges_g),
     error = function(e) NA_real_
   )
 
@@ -715,8 +743,15 @@ iterative_drop_once <- function(data) {
     filter(condition == "control") |>
     slice_max(z_score_group, n = 1)
 
+  # with_ties = FALSE matters here and is not cosmetic. A group of exactly two observations
+  # always has z-scores of exactly +/-0.7071, so once both groups are down to two, the two
+  # candidates tie on abs(z). slice_max() would then return BOTH rows, and the ifelse()
+  # below would compare a length-n row_id vector against a length-2 one, recycling it and
+  # setting essentially arbitrary observations to NA. Taking the first row breaks the tie
+  # deterministically in favour of the intervention case, matching the optimised
+  # implementation in compendium_iterative_ttest_optimised.qmd.
   to_drop <- bind_rows(smallest_in_intervention, largest_in_control) |>
-    slice_max(abs(z_score_group), n = 1)
+    slice_max(abs(z_score_group), n = 1, with_ties = FALSE)
 
   data <- data |> mutate(score = ifelse(row_id == to_drop$row_id, NA, score))
 
