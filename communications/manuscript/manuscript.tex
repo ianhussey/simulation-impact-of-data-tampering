@@ -155,28 +155,13 @@
 \usepackage{makecell}
 \usepackage{xcolor}
 \usepackage{threeparttable}
+\usepackage{pdflscape}
 \usepackage{unicode-math}
 \usepackage[margin=4cm]{geometry}
 \usepackage{etoolbox}
 \AtBeginEnvironment{longtable}{\footnotesize}
 \AtBeginEnvironment{tabular}{\small}
 \AtBeginDocument{\setlength{\parindent}{2\parindent}}
-\makeatletter
-\@ifpackageloaded{tcolorbox}{}{\usepackage[skins,breakable]{tcolorbox}}
-\@ifpackageloaded{fontawesome5}{}{\usepackage{fontawesome5}}
-\definecolor{quarto-callout-color}{HTML}{909090}
-\definecolor{quarto-callout-note-color}{HTML}{0758E5}
-\definecolor{quarto-callout-important-color}{HTML}{CC1914}
-\definecolor{quarto-callout-warning-color}{HTML}{EB9113}
-\definecolor{quarto-callout-tip-color}{HTML}{00A047}
-\definecolor{quarto-callout-caution-color}{HTML}{FC5300}
-\definecolor{quarto-callout-color-frame}{HTML}{acacac}
-\definecolor{quarto-callout-note-color-frame}{HTML}{4582ec}
-\definecolor{quarto-callout-important-color-frame}{HTML}{d9534f}
-\definecolor{quarto-callout-warning-color-frame}{HTML}{f0ad4e}
-\definecolor{quarto-callout-tip-color-frame}{HTML}{02b875}
-\definecolor{quarto-callout-caution-color-frame}{HTML}{fd7e14}
-\makeatother
 \makeatletter
 \@ifpackageloaded{caption}{}{\usepackage{caption}}
 \AtBeginDocument{%
@@ -223,7 +208,7 @@
 \IfFileExists{xurl.sty}{\usepackage{xurl}}{} % add URL line breaks if available
 \urlstyle{same}
 \hypersetup{
-  pdftitle={Little big lies: How little data tampering is needed to manufacture statistically significant results},
+  pdftitle={Very little data tampering is needed to manufacture statistically significant results: A Monte Carlo simulation study},
   pdfauthor={Ian Hussey},
   colorlinks=true,
   linkcolor={blue},
@@ -237,9 +222,9 @@
 \begin{document}
 
 \begin{frontmatter}
-\title{Little big lies:\\
-How little data tampering is needed to manufacture statistically
-significant results}
+\title{Very little data tampering is needed to manufacture statistically
+significant results:\\
+A Monte Carlo simulation study}
 \author[1]{Ian Hussey%
 \corref{cor1}%
 }
@@ -256,23 +241,28 @@ fabricating a dataset. I simulate a dishonest analyst who starts from
 data generated under the true null hypothesis and alters, deletes, or
 invents one data point at a time, always the point that most helps,
 re-running the test after every change until \emph{p} \textless{} .05. I
-formalize this as a family of iterative greedy tampering strategies
-(dropping cases, switching condition labels, re-pairing values,
-duplicating cases, fabricating cases, and replacing cases) across three
-common designs: the two-group mean difference (Student's t-test), the
-Pearson correlation, and the 2x2 association (chi-square test). Each
-strategy runs until significance is reached or further tampering becomes
-structurally impossible, and the estimand is the effort required: the
-number of tampered data points, both absolutely and as a proportion of
-the sample. Two findings recur. First, effort is small. Median tamper
-counts correspond to a few per cent of the sample at realistic sample
-sizes. The proportion of the sample that must be tampered does not grow
-with sample size, so large studies are no safer proportionally than
-small ones. Second, the strategies that are likely hardest to detect,
-because they preserve every univariate distribution (condition
-switching; value re-pairing), are among the most effective. I conclude
-that fabrication and falsification of results typically requires a
-worryingly small amount of actual data tampering.
+formalize this as a family of iterative algorithmically-greedy tampering
+strategies (dropping cases, switching condition labels, re-pairing
+values, duplicating cases, fabricating cases, and replacing cases)
+across three common designs: the two-group mean difference (Student's
+t-test), the Pearson correlation, and the 2x2 association (chi-square
+test). Each strategy runs until significance is reached or further
+tampering becomes structurally impossible, and the estimand is the
+effort required: the number of tampered data points, both absolutely and
+as a proportion of the sample. Two findings recur. First, effort is
+small in absolute terms and falls steeply in relative terms as samples
+grow. Median tamper counts rise only slowly with sample size, from a
+handful of data points at N = 20 to a few dozen at N = 400, so expressed
+as a share of the sample the effort drops by roughly an order of
+magnitude. Large studies are therefore proportionally easier to corrupt,
+not safer. Second, the strategy that is hardest to detect in the
+two-group design, because it leaves every univariate distribution
+untouched (condition switching), is also among the cheapest; its
+correlation analogue (value re-pairing) is cheaper than duplication and
+costs about as much as unprincipled case deletion, while being invisible
+to any check of either variable alone. I conclude that fabrication and
+falsification of results typically requires a worryingly small amount of
+actual data tampering.
 \end{abstract}
 
 
@@ -281,6 +271,8 @@ worryingly small amount of actual data tampering.
 
 \end{frontmatter}
     
+
+\section{Introduction}\label{introduction}
 
 In November 2019, the pivotal trial of a treatment for ANCA-associated
 vasculitis was unblinded and its primary analysis run. The result was
@@ -301,11 +293,12 @@ Food and Drug Administration, Center for Drug Evaluation and Research,
 dwelling on. Five records out of 331, just 1.5\% of the sample,
 separated a failed trial from a successful one.
 
-How often does this happen? Meta-analysis of the survey literature puts
-self-admitted research misconduct at 2.9\% of researchers (95\% CI
-{[}2.1, 3.8{]}), comprising 1.9\% for fabrication and 3.3\% for
-falsification, while 15.5\% report having witnessed it in others
-(\citeproc{ref-xie_prevalence_2021}{Xie et al., 2021}; see also
+How often does it occur that data are simply tampered with until
+statistical significance is reached? Meta-analysis of the survey
+literature puts self-admitted research misconduct at 2.9\% of
+researchers (95\% CI {[}2.1, 3.8{]}), comprising 1.9\% for fabrication
+and 3.3\% for falsification, while 15.5\% report having witnessed it in
+others (\citeproc{ref-xie_prevalence_2021}{Xie et al., 2021}; see also
 \citeproc{ref-fanelli_how_2009}{Fanelli, 2009}). When the National
 Survey on Research Integrity used a randomized response design to give
 respondents provable deniability, admitted fabrication rose to 4.3\% and
@@ -395,16 +388,25 @@ relatively robust or fragile most results are to modifications of only a
 small number of data points (although see
 \citeproc{ref-spiess_scientific_2024}{Spiess et al., 2024}).
 
-To this end, I invert the design used in previous simulations to
-understand the impact of \emph{p}-hacking. Where Stefan \& Schönbrodt
-(\citeproc{ref-stefan_big_2023}{2023}) fix a budget of manipulations and
-measure the resulting false-positive rate, I fix the goal ---
-statistical significance --- and measure the number of tampered data
-points required to reach it. I take this to be the more ecologically
-valid framing for deliberate tampering: an analyst who has decided to
-manufacture a result does not set a budget in advance and stop when it
-is exhausted, but continues until the \emph{p}-value crosses. It also
-yields effort directly, in units of edited data points.
+Some definition matters are worth considering, insofar as they informed
+which tampering strategies were simulated. The US government's Office of
+Research Integrity provides influential definitions of research
+misconduct and its forms
+(\citeproc{ref-steneck_introduction_2007}{Steneck, 2007}). According to
+the ORI definitions, fabrication is ``making up data or results and
+recording or reporting them''. This is represented by the the
+fabrication, duplication and replacement strategies simulated here,
+which add data points. Falsification is ``manipulating research
+materials, equipment, or processes, or changing or omitting data or
+results such that the research is not accurately represented in the
+research record''. This is represented by the dropping strategy (which
+omits observations) and the condition switching and re-pairing
+strategies (which change labels and pairings without adding or deleting
+anything). The taxonomy that carries the regulatory and moral weight
+thus classifies by mechanism: was the data point invented, or was it
+altered or omitted? Of course, the line is not necessarily clear here,
+given that an altered data point is equivalent to a removed data point
+plus a newly added data point.
 
 In this article I do three things. First, I formalize data tampering as
 a family of iterative greedy algorithms (dropping, condition switching,
@@ -415,13 +417,23 @@ association (chi-square test). Second, I estimate the effort each
 strategy requires, with the full design specified under the ADEMP
 framework (\citeproc{ref-morris_using_2019}{Morris et al., 2019};
 \citeproc{ref-siepe_simulation_2024}{Siepe et al., 2024}) and every
-estimate accompanied by a Monte Carlo standard error. Because the
-simulations run without any tampering budget, the complete distribution
-of required effort is observed, and the proportion of datasets exceeding
-any given budget is recovered afterwards from the same runs. Third, I
-show that the strategies hardest to detect are among the cheapest, and
-that the manufactured effect sizes cluster just above the critical
-effect size --- large enough to publish, too small to look suspicious.
+estimate accompanied by a Monte Carlo standard error. I invert the
+design used in previous simulations to understand the impact of
+\emph{p}-hacking. Where Stefan \& Schönbrodt
+(\citeproc{ref-stefan_big_2023}{2023}) fix a budget of manipulations and
+measure the resulting false-positive rate, I fix the goal (statistical
+significance) and measure the number of tampered data points required to
+reach it. I take this to be the more ecologically valid framing for
+deliberate tampering: an analyst who has decided to manufacture a result
+does not set a budget in advance and stop when it is exhausted, but
+continues until the \emph{p}-value crosses. It also yields effort
+directly, in units of edited data points. Because the simulations run
+without any tampering budget, the complete distribution of required
+effort is observed, and the proportion of datasets exceeding any given
+budget is recovered afterwards from the same runs. Third, I show that
+the effort required is small, that it does not grow with sample size in
+proportional terms, and that the strategies hardest to detect are among
+the cheapest.
 
 \section{Methods}\label{methods}
 
@@ -445,9 +457,8 @@ points are required to first reach \emph{p} \textless{} .05, absolutely
 and as a proportion of the sample, and how this scales with sample size;
 (2) the proportion of datasets requiring more than a given share of the
 sample (post hoc budgets of 10\% and 25\%), and the proportion for which
-significance is never attained at all; (3) the effect-size bias of the
-final tampered dataset relative to the true effect of zero; and (4) how
-the strategies compare on these measures.
+significance is never attained at all; and (3) how the strategies
+compare on these measures.
 
 \subsection{Data-generating processes}\label{data-generating-processes}
 
@@ -479,15 +490,13 @@ in each continuous setting and 54 in the binary setting, each replicated
 
 \subsection{Estimands}\label{estimands}
 
-The primary estimand is \texttt{tampers\_needed}: the number of
-tampering operations applied before the test first returns \emph{p}
-\textless{} .05. The secondary estimand is the effect size of the final
-tampered dataset --- Hedges' \emph{g} in the mean-difference setting and
-Pearson's \emph{r} in the correlation setting --- which, because the
-true effect is zero, \emph{is} the bias the tampering introduces; it is
-reported signed, since the sign is the direction of the manufactured
-effect. (No standardized effect-size bias is computed in the binary
-setting.)
+The estimand is \texttt{tampers\_needed}: the number of tampering
+operations applied before the test first returns \emph{p} \textless{}
+.05, reported both as a count and as a proportion of the sample. The
+compendia also record the effect size of each final tampered dataset,
+but those are not analysed here: this article is concerned with the
+effort required to manufacture a false positive rather than with the
+size of the effect that results.
 
 \subsection{Methods (tampering
 strategies)}\label{methods-tampering-strategies}
@@ -569,23 +578,21 @@ rather than simulated: it merely doubles the directional false-positive
 rate to \(\alpha\), adding \(\tfrac{1}{2}\alpha\).
 
 No tampering budget is imposed. Each strategy runs until significance is
-reached or a structural limit is hit --- the data are exhausted under
-dropping, no improving re-pairing exists, a donor cell empties in the
-2×2 --- with a loop guard at 10× the sample size as a termination
-backstop for pathological greedy stalls (e.g., a one-step greedy cannot
-cross the two-sided test's \(p \approx 1\) valley when the initial
-dataset happens to show a strong effect in the \emph{opposite}
-direction; such iterations, well under 1\% of runs, are recorded as
-never attaining significance). Because the full unbudgeted counts are
-recorded, the proportion of datasets exceeding \emph{any} tampering
-budget is computable after the fact; I report budgets of 10\% and 25\%
-of the sample.
+reached or a structural limit is hit, such removing all datat under
+dropping. A loop guard is included at 10× the sample size as a
+termination backstop (e.g., a one-step greedy cannot cross the two-sided
+test's \(p \approx 1\) valley when the initial dataset happens to show a
+strong effect in the \emph{opposite} direction; such iterations, well
+under 1\% of runs, are recorded as never attaining significance).
+Because the full unbudgeted counts are recorded, the proportion of
+datasets exceeding \emph{any} tampering budget is computable after the
+fact; I report budgets of 10\% and 25\% of the sample.
 
 \subsection{Performance measures and Monte Carlo
 uncertainty}\label{performance-measures-and-monte-carlo-uncertainty}
 
 An iteration that never attains significance has no finite tamper count
---- it is right-censored. All percentile-based summaries (median, 95\%
+(i.e., is right-censored). All percentile-based summaries (median, 95\%
 prediction interval) are therefore computed over all iterations with the
 never-significant ones ranked above every finite count; a percentile
 falling among them is reported as \emph{never} rather than being
@@ -593,10 +600,14 @@ silently replaced by the survivors' percentile, which would answer a
 different question (``given that tampering worked, how many edits?'')
 and bias the effort downward. The mean cannot be computed this way at
 all (the censored counts are unbounded above), so means are reported
-only as conditional-on-success skew diagnostics. The 95\% prediction
-interval is the 2.5th--97.5th percentile of the tamper counts across
-iterations: the range within which a single new study's required effort
-would fall 95\% of the time.
+only as conditional-on-success skew diagnostics. Two intervals are used.
+The interquartile range is plotted, because one condition (correlation
+duplication at the smallest sample size) has a 97.5th percentile at
+nearly nine times the sample and would otherwise set the scale for every
+panel. The 95\% prediction interval is reported in
+Table~\ref{tbl-results}. Effort as a proportion is expressed relative to
+the \emph{original} sample size, so strategies that append cases, or
+re-tamper a case already tampered with, can exceed 1.
 
 Every reported estimate carries a Monte Carlo standard error: binomial
 for proportions, closed-form for means, and nonparametric bootstrap for
@@ -609,22 +620,6 @@ identical regardless of worker count.
 
 \section{Results}\label{results}
 
-\begin{tcolorbox}[enhanced jigsaw, breakable, colframe=quarto-callout-note-color-frame, leftrule=.75mm, toprule=.15mm, opacityback=0, arc=.35mm, rightrule=.15mm, bottomrule=.15mm, colback=white, left=2mm]
-\begin{minipage}[t]{5.5mm}
-\textcolor{quarto-callout-note-color}{\faInfo}
-\end{minipage}%
-\begin{minipage}[t]{\textwidth - 5.5mm}
-
-\textbf{Draft status.} This draft was rendered from 16 of the 16
-simulation cells (16 from the optimised implementation). The largest
-tamper count observed anywhere in these runs is 885.0\% of the sample,
-which is \textbf{inconsistent} with the superseded design that capped
-tampering at 50\%; treat every number below as provisional until the
-definitive run is in place.
-
-\end{minipage}%
-\end{tcolorbox}
-
 \begin{figure}
 
 \centering{
@@ -636,11 +631,14 @@ definitive run is in place.
 \caption{\label{fig-meandiff}Mean-difference (t-test) setting: the
 number of tampered data points needed to first reach p \textless{} .05
 (top) and the same effort as a proportion of the sample (bottom). Points
-are censoring-aware medians and bars are 95\% prediction intervals
-(2.5th--97.5th percentile across iterations); a bar is omitted where its
-upper percentile falls among datasets that never attained significance.
-Strategies are ordered by median proportion tampered. K = 10,000
-iterations per condition.}
+are censoring-aware medians and bars are interquartile ranges. A bar
+ending in a hollow triangle is open-ended: more than a quarter of those
+datasets never attained significance, so the upper quartile has no
+finite value and the bar is drawn to the top of the data range. The
+lower panel expresses effort relative to the \emph{original} sample
+size, so strategies that append cases or re-tamper the same case can
+exceed 1. Strategies are ordered by median proportion tampered. K =
+10,000 iterations per condition.}
 
 \end{figure}%
 
@@ -654,9 +652,12 @@ iterations per condition.}
 
 \caption{\label{fig-correlation}Correlation setting: tampered data
 points needed to first reach p \textless{} .05 (top) and as a proportion
-of the sample (bottom). Points are censoring-aware medians, bars 95\%
-prediction intervals; a bar is omitted where its upper percentile is
-never attained. K = 10,000 iterations per condition.}
+of the sample (bottom). Points are censoring-aware medians and bars are
+interquartile ranges; a bar ending in a hollow triangle is open-ended,
+its upper quartile falling among datasets that never attained
+significance. Effort in the lower panel is relative to the
+\emph{original} sample size, so strategies that append cases can exceed
+1. K = 10,000 iterations per condition.}
 
 \end{figure}%
 
@@ -668,41 +669,48 @@ never attained. K = 10,000 iterations per condition.}
 
 }
 
-\caption{\label{fig-2x2}2×2 association (chi-square) setting, by outcome
-prevalence: tampered cells needed to first reach p \textless{} .05 as a
-proportion of the sample. Points are censoring-aware medians, bars 95\%
-prediction intervals; a bar is omitted where its upper percentile is
-never attained. At prevalence .05 and small N, a majority of datasets
-cannot be pushed to significance at all by dropping (the median itself
-is never attained and no point is drawn). K = 10,000 iterations per
-condition.}
+\caption{\label{fig-2x2}2x2 association (chi-square) setting, by outcome
+prevalence: the number of tampered cells needed to first reach p
+\textless{} .05 (top) and the same effort as a proportion of the sample
+(bottom). Points are censoring-aware medians and bars are interquartile
+ranges; a bar ending in a hollow triangle is open-ended, its upper
+quartile falling among datasets that never attained significance. At
+prevalence .05 and N = 20, a majority of datasets cannot be pushed to
+significance at all by dropping, so even the median is not attained and
+no point is drawn for it. K = 10,000 iterations per condition.}
 
 \end{figure}%
 
-\subsection{Effort is small and proportionally flat in sample
-size}\label{effort-is-small-and-proportionally-flat-in-sample-size}
+\subsection{Effort is small, and falls as a share of the sample as
+studies
+grow}\label{effort-is-small-and-falls-as-a-share-of-the-sample-as-studies-grow}
 
-Across both continuous settings, the absolute number of tampered data
+Across both continuous settings the absolute number of tampered data
 points needed to manufacture significance grows with sample size, but
-the \emph{proportion} of the sample does not (Figure~\ref{fig-meandiff},
-Figure~\ref{fig-correlation}): at the largest sample size examined
-(\(N = 400\)), the median proportion tampered ranges from 1.0\% to 6.0\%
-across strategies. Manufacturing a false positive is no harder,
-proportionally, in a large study than in a small one. Framed as a
-budget: at \(N = 400\), the proportion of datasets that would require
-more than 10\% of the sample to be tampered is at most 21.4\% for the
-least efficient continuous-setting strategy, and for the cheapest it is
-0.0\%. Only 21.4\% of datasets resist the least effective strategy
-altogether at that sample size.
+only slowly: median counts run from 2--10 points at \(N = 20\) to 4--24
+at \(N = 400\), a twentyfold increase in sample size met by roughly a
+threefold increase in effort (Figure~\ref{fig-meandiff},
+Figure~\ref{fig-correlation}). Expressed as a share of the sample,
+effort therefore falls: from 10.0\%--50.0\% at \(N = 20\) to
+1.0\%--6.0\% at \(N = 400\), a reduction of between 6.7- and 10.0-fold
+depending on the strategy. Manufacturing a false positive is not merely
+no harder in a large study than in a small one; proportionally it is
+considerably easier. The intuition that a large sample is robust to a
+few altered observations is exactly backwards. Framed as a budget: at
+\(N = 400\), the proportion of datasets that would require more than
+10\% of the sample to be tampered is at most 21.4\% for the least
+efficient continuous-setting strategy, and for the cheapest it is 0.0\%.
+Only 21.4\% of datasets resist the least effective strategy altogether
+at that sample size.
 
 The 2×2 setting is the partial exception that illustrates the mechanism
 (Figure~\ref{fig-2x2}). With a rare outcome (prevalence .05) and small
 samples there is simply not enough signal-bearing data to tamper with:
 at \(N = 20\), 60\% of datasets cannot be pushed to significance by
-dropping at all --- the strategy exhausts the table's hostile cells
-first. Where tampering \emph{is} structurally possible, rare outcomes
-are cheap to tip, because each fabricated or relabelled case moves the
-test statistic disproportionately.
+dropping at all as the strategy exhausts the table's hostile cells
+first. Where tampering is structurally possible, rare outcomes are cheap
+to tip, because each fabricated or relabelled case moves the test
+statistic disproportionately.
 
 \subsection{The stealthiest strategies are among the
 cheapest}\label{the-stealthiest-strategies-are-among-the-cheapest}
@@ -710,189 +718,112 @@ cheapest}\label{the-stealthiest-strategies-are-among-the-cheapest}
 Strategies in every figure are ordered by their median proportion
 tampered, computed from the data at render time. The forensically
 critical result is where the label-switching family sits in that
-ordering: condition switching (median 5 switched labels at \(N = 100\))
-and re-pairing (median 8 re-paired values at \(N = 100\)) reach
-significance with effort comparable to or lower than the visibly
-destructive strategies, while leaving every univariate distribution
-intact --- re-pairing preserves both marginals \emph{exactly}. No check
-of either variable in isolation can detect them; only the joint
-structure is tampered. Efficiency and detectability are thus not in
-tension for the would-be fraudster: the cheap strategies include the
-invisible ones.
+ordering. In the two-group design, condition switching is the second
+cheapest of the five strategies (median 5 switched labels at
+\(N = 100\)) despite leaving every univariate distribution untouched.
+Its correlation analogue, re-pairing (median 8 re-paired values at
+\(N = 100\)), is not the cheapest in its setting. High-leverage
+replacement and fabrication are cheaper, but it costs about the same as
+unprincipled case deletion and less than duplication, while preserving
+both marginal distributions exactly. Neither manipulation is detectable
+by any check of a variable in isolation; only the joint structure is
+disturbed. Efficiency and detectability are therefore not in tension for
+the would-be fraudster: in each setting, at least one of the cheapest
+strategies is also among the least visible.
 
-\begin{longtable}[t]{llrrrrr}
+\clearpage
+\begin{landscape}
+
+\begingroup\fontsize{9}{11}\selectfont
+
+\begin{longtable}[t]{llrrrrrr}
 
 \caption{\label{tbl-results}Tampering effort at a representative sample
 size (total N = 100), by setting and strategy. Values in parentheses are
-\textless U+00B1\textgreater1 Monte Carlo standard error. Never is the
-proportion of datasets for which significance was never attained,
-tampering having run to a structural limit. The two budget columns are
-post hoc tampering budgets: the proportion of datasets needing more than
-that share of the sample tampered, never-significant datasets exceeding
-every budget by definition. The median is computed over all iterations
-with never-significant ones ranked above every finite count, and is also
-given as a proportion of the sample (Prop.); prediction intervals are
-shown in the figures. D/f/r denotes the duplication, fabrication and
-replacement strategies, which coincide for binary data.}
++/-1 Monte Carlo standard error. Never is the proportion of datasets for
+which significance was never attained, tampering having run to a
+structural limit. The two budget columns are post hoc tampering budgets:
+the proportion of datasets needing more than that share of the sample
+tampered, never-significant datasets exceeding every budget by
+definition. The median is computed over all iterations with
+never-significant ones ranked above every finite count, and is also
+given as a proportion of the sample (Prop.). PI is the 95\% prediction
+interval, the 2.5th-97.5th percentile of the tamper counts across
+iterations; the figures show interquartile ranges instead, for the
+reason given in the Methods. D/f/r denotes the duplication, fabrication
+and replacement strategies, which coincide for binary data.}
 
 \tabularnewline
 
 \toprule
-Setting & Strategy & Never & > 10\% & > 25\% & Median & Prop.\\
+Setting & Strategy & Never & > 10\% & > 25\% & Median & 95\% PI & Prop.\\
 \midrule
- & Condition switching & 0.000 (0.000) & 0.020 (0.001) & 0.000 (0.000) & 5.0 (0.0) & 0.050 (0.000)\\
+ & Condition switching & 0.000 (0.000) & 0.020 (0.001) & 0.000 (0.000) & 5.0 (0.0) & {}[0, 10] & 0.050 (0.000)\\
 \nopagebreak
- & Dropping & 0.000 (0.000) & 0.414 (0.005) & 0.001 (0.000) & 9.0 (0.0) & 0.090 (0.000)\\
+ & Dropping & 0.000 (0.000) & 0.414 (0.005) & 0.001 (0.000) & 9.0 (0.0) & {}[0, 20] & 0.090 (0.000)\\
 \nopagebreak
- & Duplication & 0.000 (0.000) & 0.659 (0.005) & 0.081 (0.003) & 14.0 (0.0) & 0.140 (0.000)\\
+ & Duplication & 0.000 (0.000) & 0.659 (0.005) & 0.081 (0.003) & 14.0 (0.0) & {}[0, 28] & 0.140 (0.000)\\
 \nopagebreak
- & Fabrication & 0.000 (0.000) & 0.625 (0.005) & 0.001 (0.000) & 12.0 (0.6) & 0.120 (0.006)\\
+ & Fabrication & 0.000 (0.000) & 0.625 (0.005) & 0.001 (0.000) & 12.0 (0.6) & {}[0, 22] & 0.120 (0.006)\\
 \nopagebreak
-\multirow[t]{-4}{*}[\normalbaselineskip]{\raggedright\arraybackslash Mean difference} & Replacement & 0.000 (0.000) & 0.062 (0.002) & 0.000 (0.000) & 4.0 (0.0) & 0.040 (0.000)\\
-\cmidrule{1-7}\pagebreak[0]
- & Dropping & 0.000 (0.000) & 0.345 (0.005) & 0.001 (0.000) & 8.0 (0.0) & 0.080 (0.000)\\
+\multirow[t]{-4}{*}[\normalbaselineskip]{\raggedright\arraybackslash Mean difference} & Replacement & 0.000 (0.000) & 0.062 (0.002) & 0.000 (0.000) & 4.0 (0.0) & {}[0, 13] & 0.040 (0.000)\\
+\cmidrule{1-8}\pagebreak[0]
+ & Dropping & 0.000 (0.000) & 0.345 (0.005) & 0.001 (0.000) & 8.0 (0.0) & {}[0, 19] & 0.080 (0.000)\\
 \nopagebreak
- & Duplication & 0.000 (0.000) & 0.638 (0.005) & 0.102 (0.003) & 13.0 (0.2) & 0.130 (0.002)\\
+ & Duplication & 0.000 (0.000) & 0.638 (0.005) & 0.102 (0.003) & 13.0 (0.2) & {}[0, 32] & 0.130 (0.002)\\
 \nopagebreak
- & Fabrication & 0.000 (0.000) & 0.000 (0.000) & 0.000 (0.000) & 4.0 (0.0) & 0.040 (0.000)\\
+ & Fabrication & 0.000 (0.000) & 0.000 (0.000) & 0.000 (0.000) & 4.0 (0.0) & {}[0, 6] & 0.040 (0.000)\\
 \nopagebreak
- & Re-pairing & 0.233 (0.004) & 0.354 (0.005) & 0.233 (0.004) & 8.0 (0.0) & 0.080 (0.000)\\
+ & Re-pairing & 0.233 (0.004) & 0.354 (0.005) & 0.233 (0.004) & 8.0 (0.0) & {}[0, never] & 0.080 (0.000)\\
 \nopagebreak
-\multirow[t]{-4}{*}[\normalbaselineskip]{\raggedright\arraybackslash Correlation} & Replacement & 0.000 (0.000) & 0.000 (0.000) & 0.000 (0.000) & 3.0 (0.0) & 0.030 (0.000)\\
-\cmidrule{1-7}\pagebreak[0]
- & Condition switching & 0.006 (0.001) & 0.140 (0.003) & 0.034 (0.002) & 5.0 (0.0) & 0.050 (0.000)\\
+\multirow[t]{-4}{*}[\normalbaselineskip]{\raggedright\arraybackslash Correlation} & Replacement & 0.000 (0.000) & 0.000 (0.000) & 0.000 (0.000) & 3.0 (0.0) & {}[0, 6] & 0.030 (0.000)\\
+\cmidrule{1-8}\pagebreak[0]
+ & Condition switching & 0.006 (0.001) & 0.140 (0.003) & 0.034 (0.002) & 5.0 (0.0) & {}[0, 30] & 0.050 (0.000)\\
 \nopagebreak
- & Dropping & 0.057 (0.002) & 0.735 (0.004) & 0.445 (0.005) & 25.0 (0.5) & 0.250 (0.005)\\
+ & Dropping & 0.057 (0.002) & 0.735 (0.004) & 0.445 (0.005) & 25.0 (0.5) & {}[0, never] & 0.250 (0.005)\\
 \nopagebreak
-\multirow[t]{-2}{*}[\normalbaselineskip]{\raggedright\arraybackslash 2<U+00D7>2, prev. 0.05} & D/f/r & 0.006 (0.001) & 0.617 (0.005) & 0.032 (0.002) & 12.0 (0.5) & 0.120 (0.005)\\
-\cmidrule{1-7}\pagebreak[0]
- & Condition switching & 0.000 (0.000) & 0.263 (0.004) & 0.000 (0.000) & 7.0 (0.0) & 0.070 (0.000)\\
+\multirow[t]{-2}{*}[\normalbaselineskip]{\raggedright\arraybackslash 2x2, prev. 0.05} & D/f/r & 0.006 (0.001) & 0.617 (0.005) & 0.032 (0.002) & 12.0 (0.5) & {}[0, 26] & 0.120 (0.005)\\
+\cmidrule{1-8}\pagebreak[0]
+ & Condition switching & 0.000 (0.000) & 0.263 (0.004) & 0.000 (0.000) & 7.0 (0.0) & {}[0, 15] & 0.070 (0.000)\\
 \nopagebreak
- & Dropping & 0.000 (0.000) & 0.629 (0.005) & 0.040 (0.002) & 13.0 (0.0) & 0.130 (0.000)\\
+ & Dropping & 0.000 (0.000) & 0.629 (0.005) & 0.040 (0.002) & 13.0 (0.0) & {}[0, 27] & 0.130 (0.000)\\
 \nopagebreak
-\multirow[t]{-2}{*}[\normalbaselineskip]{\raggedright\arraybackslash 2<U+00D7>2, prev. 0.2} & D/f/r & 0.000 (0.000) & 0.788 (0.004) & 0.224 (0.004) & 18.0 (0.2) & 0.180 (0.002)\\
+\multirow[t]{-2}{*}[\normalbaselineskip]{\raggedright\arraybackslash 2x2, prev. 0.2} & D/f/r & 0.000 (0.000) & 0.788 (0.004) & 0.224 (0.004) & 18.0 (0.2) & {}[0, 35] & 0.180 (0.002)\\
 \bottomrule
 
 \end{longtable}
 
-\subsection{The manufactured effect is just large
-enough}\label{the-manufactured-effect-is-just-large-enough}
+\endgroup{}
 
-\begin{figure}
-
-\centering{
-
-\includegraphics[width=1\linewidth,height=\textheight,keepaspectratio]{manuscript_files/figure-pdf/fig-bias-1.pdf}
-
-}
-
-\caption{\label{fig-bias}Effect-size bias of the final tampered
-datasets, relative to the true effect of zero: Hedges' g in the
-mean-difference setting (left) and Pearson's r in the correlation
-setting (right). Points are medians across iterations and bars are
-interquartile ranges; strategies are coloured by family, so that
-condition switching (mean difference) and re-pairing (correlation) ---
-the two distribution-preserving strategies --- share a colour. The
-dashed curve is the critical effect size --- the smallest effect
-significant at \(\alpha\) = .05 (two-sided) for the original sample
-size; strategies that change N (dropping, duplication, fabrication) make
-this an approximation. Because the greedy procedure stops at the first
-crossing, the manufactured effects sit just above this curve.
-Interquartile ranges are shown rather than 95\% prediction intervals
-because the effect-size distribution is a mixture whose small negative
-component sits almost exactly at the 2.5th percentile (see the text).}
-
-\end{figure}%
-
-Because the true effect is zero, the signed effect size of each final
-dataset is itself the bias the tampering introduced.
-Figure~\ref{fig-bias} shows that the median manufactured effect tracks
-the critical effect size for the sample size at hand: the greedy
-procedure stops the moment significance is crossed, so it produces
-effects just large enough to clear the threshold and no larger. This has
-an uncomfortable implication for detection: manufactured effects of this
-kind are, by construction, of exactly the magnitude that a reader would
-consider unremarkable for the sample size at hand --- they look like
-ordinary, modestly powered findings, and they shrink as N grows just as
-a real literature's small-study effects are expected to.
-
-The effect-size distribution is a mixture, and its components are worth
-separating because they explain the negative values visible in
-Figure~\ref{fig-bias}. Every strategy pushes toward a \emph{positive}
-effect, so a negative final effect size can arise in only two ways.
-First, 5.4\% of datasets are significant under the null before any
-tampering --- the Type I error rate, as it should be --- and those split
-roughly evenly between the two directions, putting about half that mass
-below zero. Second, in 0.20\% of the 851,641 iterations that did tamper,
-the greedy procedure stalled before it had turned the effect positive;
-these are concentrated in re-pairing, whose
-accept-only-if-\emph{r}-increases rule can leave it stuck, and
-\textbf{none of them reached significance} (405 of 1,720). No
-manufactured false positive is negative.
-
-That small negative component sits almost exactly at the 2.5th
-percentile, so a 95\% prediction interval intersects it erratically: its
-lower bound flips sign between adjacent sample sizes according to
-whether the negative fraction happens to fall just above or just below
-.025. Figure~\ref{fig-bias} therefore shows interquartile ranges, which
-lie well inside the tampered mass and are not subject to that
-knife-edge.
+\end{landscape}
+\clearpage
 
 \section{Discussion}\label{discussion}
-
-\subsection{Summary of findings against the
-aims}\label{summary-of-findings-against-the-aims}
 
 The distance from a null dataset to a statistically significant one is
 short and cheap. The median effort is a small percentage of the sample
 across strategies and settings, and for most strategies a minority of
 datasets require more than 10\% of the sample to be tampered. Where
 tampering fails outright it is because it is structurally impossible
-rather than merely expensive --- the rare-outcome 2×2 cells, where too
-few hostile cases exist to move the table at all. The proportion of the
-sample that must be altered does not grow with sample size, so the
-intuition that large studies are safe from this kind of manipulation is
-wrong in proportional terms; this parallels the finding for
-\emph{p}-hacking that larger samples alone do not reduce its success
-rate (\citeproc{ref-stefan_big_2023}{Stefan \& Schönbrodt, 2023}). The
-strategies that preserve univariate distributions --- condition
-switching and re-pairing, precisely the ones invisible to univariate
-forensic checks --- are among the cheapest. And the effects manufactured
-by a stop-at-first-crossing procedure are calibrated by construction to
-look unremarkable.
+rather than merely expensive. Specifically, the rare-outcome 2×2 cells,
+where too few hostile cases exist to move the table at all. The share of
+the sample that must be altered falls as samples grow, by roughly an
+order of magnitude across the range examined, so the intuition that a
+large study is protected by its size is not merely optimistic but
+inverted; this extends the finding for \emph{p}-hacking that larger
+samples alone do not reduce its success rate
+(\citeproc{ref-stefan_big_2023}{Stefan \& Schönbrodt, 2023}). The
+strategies that preserve univariate distributions (condition switching
+and re-pairing) are among the most effective. Further research is
+necessary to understand the relative statistical detectability of each
+of these strategies.
 
-\subsection{Ethics and disclosure}\label{ethics-and-disclosure}
-
-This article documents weaponisable knowledge, and the framing matters:
-the simulations are designed to make a continuum visible, not to provide
-a recipe. The manipulations simulated here have been publicly described
-for years (\citeproc{ref-brown_condition_2020}{Brown, 2020};
-\citeproc{ref-chambers_seven_2017}{Chambers, 2017}); what is added here
-is quantification.
-
-Consider how the strategies fall under the federal definitions of
-research misconduct (\citeproc{ref-steneck_introduction_2007}{Steneck,
-2007}). \emph{Fabrication} is ``making up data or results and recording
-or reporting them'' --- the fabrication, duplication and replacement
-strategies simulated here, which add data points that were never
-collected. \emph{Falsification} is ``manipulating research materials,
-equipment, or processes, or changing or omitting data or results such
-that the research is not accurately represented in the research record''
---- the dropping strategy, which omits genuine observations, and the
-condition switching and re-pairing strategies, which change labels and
-pairings without adding or deleting anything. The taxonomy that carries
-the regulatory and moral weight thus classifies by \emph{mechanism}: did
-you invent it, or did you alter or omit it?
-
-These results say that mechanism is close to irrelevant to what actually
-matters. Adding invented cases, deleting inconvenient ones, and
-relabelling existing ones all require a comparable number of edits and
-leave behind a comparably biased effect. The one clause of the
-definitions that unifies them is a consequence criterion rather than a
-mechanism one --- \emph{such that the research is not accurately
-represented in the research record} --- and every strategy here
-satisfies it identically. Each produces a result that did not exist
-before.
+Adding invented cases, deleting inconvenient ones, and relabelling
+existing ones all require a comparable number of edits. The one clause
+of the definitions that unifies them is a consequence criterion rather
+than a mechanism one, such that the research is not accurately
+represented in the research record, and every strategy here satisfies it
+identically. Each produces a result that did not exist before.
 
 The practical asymmetry, then, is not in the acts but in how they are
 regarded. Excluding inconvenient participants is admitted by 38--43\% of
@@ -911,67 +842,47 @@ measure is not merely an intellectual inconsistency: it is a live cause
 of the behaviour. Deleting a hostile case and inventing a favourable one
 are, in effort and in damage to the evidence, the same act.
 
-\subsection{Limitations}\label{limitations}
+The ethics of reporting the results of this simulation study were given
+considerable thought. Although the simulations were designed to make a
+continuum visible rather than to provide a recipe, in principle, this
+article documents knowledge that could be weaponised by bad actors. At
+the same time, the tampering strategies simulated here have been
+publicly described for years (\citeproc{ref-brown_condition_2020}{Brown,
+2020}; \citeproc{ref-chambers_seven_2017}{Chambers, 2017}); what is
+added here is quantification. This quantification could help change
+future scientific behavior, by raising awareness around how impactful
+even a very small number of data tampers can be.
 
-\begin{itemize}
-\tightlist
-\item
-  Proof of principle, not a fraud model. The strategies are deliberately
-  simple and greedy. Real, detection-aware fraud would trade efficiency
-  for plausibility; conversely, several naive strategies here leave
-  detectable signatures (truncated distributions after dropping;
-  leverage outliers after fabrication; shifted marginal prevalence in
-  the 2×2). The distribution-preserving strategies are the existence
-  proof that effective \emph{and} invisible tampering is cheap.
-\item
-  No detectability axis. I measure effort and bias, not the probability
-  that each manipulation would be caught by modern forensic tools
-  (\citeproc{ref-brown_grim_2017}{Brown \& Heathers, 2017};
-  \citeproc{ref-heathers_recovering_2018}{Heathers et al., 2018};
-  \citeproc{ref-wilkinson_inspect-sr_2025}{Wilkinson et al., 2025}).
-  Crossing effort with detectability is the most valuable extension.
-\item
-  A degenerate case in correlation duplication at very small N. With
-  \(n = 20\) or \(50\) the duplication pool is only two or five points,
-  and duplicating them repeatedly can drive the sample to a significant
-  \emph{negative} correlation, which the two-sided test accepts. These
-  iterations are counted as having reached significance even though the
-  manufactured effect points the wrong way. They are a small fraction of
-  successful tampering overall and are confined to the two smallest
-  samples, but a stopping rule requiring the effect to be in the
-  intended direction would exclude them and would be the better
-  specification.
-\item
-  Greedy myopia is part of the procedure. One-step greedy occasionally
-  stalls --- most notably when the initial dataset shows a strong effect
-  opposite to the tampering direction, where a two-sided test's
-  \(p \approx 1\) valley cannot be crossed one step at a time. These
-  rare failures are recorded as never attaining significance and are a
-  true property of naive tampering, not an artefact; a less myopic
-  tamperer would do better, so the effort estimates here are, if
-  anything, conservative upper bounds.
-\item
-  Elementary designs and Normal/binary DGPs. Likert-type outcomes,
-  non-Normal marginals, covariate-adjusted models, and an ``alter
-  existing values'' strategy distinct from replacement are out of scope.
-  The strategies here also act on the dataset itself; they are therefore
-  complementary to, and not comparable with, the analytic-flexibility
-  strategies compiled by Stefan \& Schönbrodt
-  (\citeproc{ref-stefan_big_2023}{2023}).
-\item
-  Single threshold. All results are conditioned on \(\alpha\) = .05,
-  two-sided. No tampering budget is imposed in the design, so results
-  under any budget are recoverable from the recorded counts.
-\end{itemize}
+The strategies employed in this simulation are deliberately simple and
+greedy. Real, detection-aware fraud could plausibly trade efficiency for
+plausibility. However, there are of course many cases of
+detection-unaware fraud caught because of impossible or implausible
+results and data, and the prevalence of undetected, relatively expert
+research fraud is unknown by its very nature. Conversely, several naive
+strategies here leave potentially detectable signatures (e.g., truncated
+distributions after dropping; leverage outliers after fabrication;
+shifted marginal prevalence in the 2×2). Future research is needed to
+examine such detectability via statistical means and modern forensic
+tools (\citeproc{ref-brown_grim_2017}{Brown \& Heathers, 2017};
+\citeproc{ref-heathers_recovering_2018}{Heathers et al., 2018};
+\citeproc{ref-wilkinson_inspect-sr_2025}{Wilkinson et al., 2025}).
+However, the other distribution-preserving strategies imply that
+relatively statistically invisible tampering is cheap and effective.
+Auditable chain-of-custody for data, such as those employed in medical
+clinical trials that allowed the the US FDA to detect abnormalities in
+the trial, as discussed in the introduction, would be needed to prevent
+or detect such forms of tampering
+(\citeproc{ref-us_food_and_drug_administration_center_for_drug_evaluation_and_research_proposal_2026}{U.S.
+Food and Drug Administration, Center for Drug Evaluation and Research,
+2026}). Infrastructure for auditable chain-of-custody is rare in other
+fields.
 
 \section*{Data and code availability}\label{data-and-code-availability}
 \addcontentsline{toc}{section}{Data and code availability}
 
-All simulation code, the full per-strategy research compendia (with
-extended ADEMP specifications, per-condition tables, and Monte Carlo
-standard errors for every estimate), and the code that renders this
-manuscript --- every number, figure, and table in it is computed from
-the simulation results at render time --- are available at
+All simulation code and results, including extended ADEMP
+specifications, per-condition tables, and Monte Carlo standard errors
+for every estimate, are available at
 \url{https://github.com/ianhussey/simulation-impact-of-data-tampering}.
 
 \section*{References}\label{references}
@@ -980,9 +891,12 @@ the simulation results at render time --- are available at
 \phantomsection\label{refs}
 \begin{CSLReferences}{1}{0}
 \bibitem[\citeproctext]{ref-brown_condition_2020}
-Brown, N. J. L. (2020). \emph{This code simulates a fraudulent
-scientific experiment {[}simulation of condition swapping{]}}.
-\url{https://gist.github.com/sTeamTraen/39e2abd53ca280153f4b0926b1aae7f6}
+Brown, N. J. L. (2020). \emph{{In his excellent book {``The 7 Deadly
+Sins of Psychology,''} @chrisdc77 provides a list of 12 tips for people
+who want to get away with scientific fraud. Let's skip the question of
+where he acquired that expertise and look at just one tip: Swap
+participants between conditions. /1}}.
+\url{https://x.com/sTeamTraen/status/1329203865649094656}
 
 \bibitem[\citeproctext]{ref-brown_grim_2017}
 Brown, N. J. L., \& Heathers, J. A. J. (2017). The {GRIM} {Test}: {A}

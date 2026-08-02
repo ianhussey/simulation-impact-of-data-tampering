@@ -1,21 +1,14 @@
 ---
 title: |
-  Little big lies:\
-  How little data tampering is needed to manufacture statistically significant results
+  Very little data tampering is needed to manufacture statistically significant results:\
+  A Monte Carlo simulation study
 author:
   - name: Ian Hussey
     email: ian.hussey@unibe.ch
-    affiliations:
-      - ref: unibe
+    affiliations: University of Bern
     attributes:
         corresponding: true
-affiliations:
-  - id: unibe
-    name: University of Bern
-# TODO update the qualitative quantities in the abstract ("a few per cent", "a minority")
-# against the rendered numbers once the final HPC run has landed; the abstract is the
-# one place in this document where values cannot be computed at render time.
-abstract: 'Fabricating a statistically significant result does not require fabricating a dataset. I simulate a dishonest analyst who starts from data generated under the true null hypothesis and alters, deletes, or invents one data point at a time, always the point that most helps, re-running the test after every change until *p* < .05. I formalize this as a family of iterative greedy tampering strategies (dropping cases, switching condition labels, re-pairing values, duplicating cases, fabricating cases, and replacing cases) across three common designs: the two-group mean difference (Student''s t-test), the Pearson correlation, and the 2x2 association (chi-square test). Each strategy runs until significance is reached or further tampering becomes structurally impossible, and the estimand is the effort required: the number of tampered data points, both absolutely and as a proportion of the sample. Two findings recur. First, effort is small. Median tamper counts correspond to a few per cent of the sample at realistic sample sizes. The proportion of the sample that must be tampered does not grow with sample size, so large studies are no safer proportionally than small ones. Second, the strategies that are likely hardest to detect, because they preserve every univariate distribution (condition switching; value re-pairing), are among the most effective. I conclude that fabrication and falsification of results typically requires a worryingly small amount of actual data tampering.'
+abstract: 'Fabricating a statistically significant result does not require fabricating a dataset. I simulate a dishonest analyst who starts from data generated under the true null hypothesis and alters, deletes, or invents one data point at a time, always the point that most helps, re-running the test after every change until *p* < .05. I formalize this as a family of iterative algorithmically-greedy tampering strategies (dropping cases, switching condition labels, re-pairing values, duplicating cases, fabricating cases, and replacing cases) across three common designs: the two-group mean difference (Student''s t-test), the Pearson correlation, and the 2x2 association (chi-square test). Each strategy runs until significance is reached or further tampering becomes structurally impossible, and the estimand is the effort required: the number of tampered data points, both absolutely and as a proportion of the sample. Two findings recur. First, effort is small in absolute terms and falls steeply in relative terms as samples grow. Median tamper counts rise only slowly with sample size, from a handful of data points at N = 20 to a few dozen at N = 400, so expressed as a share of the sample the effort drops by roughly an order of magnitude. Large studies are therefore proportionally easier to corrupt, not safer. Second, the strategy that is hardest to detect in the two-group design, because it leaves every univariate distribution untouched (condition switching), is also among the cheapest; its correlation analogue (value re-pairing) is cheaper than duplication and costs about as much as unprincipled case deletion, while being invisible to any check of either variable alone. I conclude that fabrication and falsification of results typically requires a worryingly small amount of actual data tampering.'
 format:
   elsevier-pdf:
     keep-tex: true
@@ -39,6 +32,7 @@ execute:
   echo: false
 header-includes:
       - \usepackage{threeparttable}
+      - \usepackage{pdflscape} # for the landscape page holding Table 2
       - \usepackage{unicode-math}
       - \usepackage[margin=4cm]{geometry} # tighter page margins; gives \textwidth = 386.67pt = 5.35in,
       # which is the fig-width used by every figure chunk so that figures are placed at native size
@@ -65,12 +59,6 @@ knitr:
     warning: false
 ---
 
-<!-- TODO after the final HPC run lands:
-     (1) re-read the computed strategy orderings (they are derived from the data at
-         render time below, so figures/tables self-update, but the prose claims about
-         WHICH strategies are cheapest should be checked against them);
-     (2) update the abstract's qualitative quantities. -->
-
 ```{r}
 #| label: setup
 #| include: false
@@ -96,28 +84,19 @@ library(kableExtra)
 
 options(scipen = 999)
 
+# NOTE for editors: knitr chunk options (fig-cap, tbl-cap) are processed by R, and this
+# document is rendered in a C locale, which rewrites any non-ASCII character in them as the
+# literal text "<U+XXXX>". Keep chunk options ASCII-only -- write "2x2", "+/-", "-" rather
+# than the typographic characters. Body prose is handled by pandoc, not R, and may use them
+# freely.
+
 data_dir <- "../../data"
 
-# DRAFT SWITCH. Set to FALSE once the definitive simulation run is in place. While TRUE,
-# the manuscript renders from whatever caches are present rather than requiring all of
-# them, and prints a status note in the Results section saying what it used. This exists
-# so that a complete draft can be produced while a long simulation run is still going;
-# it is not a mode the finished article should ever be rendered in.
-draft_mode <- TRUE
-
-# ---- catalogue of simulation results, and which of them are on disk -----------------
+# ---- catalogue of simulation results ------------------------------------------------
 # One row per (setting, strategy, prevalence). `stem` names the cache written by the
-# corresponding compendium in ../../code.
-# The optimised compendia (code/*_optimised.qmd) write to ..._opt_full_k10000.rds and the
-# reference ones to ..._full_k10000.rds. Prefer the optimised results where they exist:
-# the two implementations are verified to return identical results given the same seed
-# (code/verify_optimised_implementations.R), so this changes only which file is read, and
-# lets the manuscript pick up whichever run has finished.
-cache_for <- function(stem) {
-  opt <- file.path(data_dir, paste0("simulation_iterative_", stem, "_opt_full_k10000.rds"))
-  if (file.exists(opt)) opt else file.path(data_dir, paste0("simulation_iterative_", stem, "_full_k10000.rds"))
-}
-
+# corresponding optimised compendium in ../../code. Those are the definitive results; the
+# reference implementations return identical output but run far more slowly, which
+# code/verify_optimised_implementations.R checks.
 sources <- tribble(
   ~setting,           ~method,                               ~stem,                      ~prevalence,
   "Mean difference",  "Dropping",                            "dropping_meandiff",         NA_real_,
@@ -137,17 +116,15 @@ sources <- tribble(
   "2x2 association",  "Dropping",                            "dropping_2x2_lowprev",      0.05,
   "2x2 association",  "Condition switching",                 "switching_2x2_lowprev",     0.05
 ) |>
-  mutate(file = map_chr(stem, cache_for),
-         available = file.exists(file),
-         implementation = ifelse(grepl("_opt_full", file), "optimised", "reference"))
+  mutate(file = file.path(data_dir, paste0("simulation_iterative_", stem, "_opt_full_k10000.rds")))
 
-missing_sources <- sources |> filter(!available)
-if (nrow(missing_sources) > 0 && !draft_mode) {
-  stop("Missing simulation caches (run the compendia in ../../code first):\n  ",
-       paste(basename(missing_sources$file), collapse = "\n  "))
+missing <- sources$file[!file.exists(sources$file)]
+if (length(missing) > 0) {
+  stop("Missing simulation caches (run the optimised compendia in ../../code first):\n  ",
+       paste(basename(missing), collapse = "\n  "))
 }
 
-# ---- assemble one long per-iteration data frame across the available settings -------
+# ---- assemble one long per-iteration data frame across all settings -----------------
 # Each compendium names its columns for its own design, so each is mapped onto the
 # common (n_total, tampers_needed, reached_sig, es) schema here.
 read_one <- function(setting, method, file, prevalence, ...) {
@@ -160,11 +137,8 @@ read_one <- function(setting, method, file, prevalence, ...) {
 }
 
 raw <- sources |>
-  filter(available) |>
   pmap_dfr(read_one) |>
   mutate(setting = factor(setting, levels = c("Mean difference", "Correlation", "2x2 association")))
-
-settings_present <- levels(droplevels(raw$setting))
 
 # ---- Monte Carlo standard errors (trimmed copies of the compendia helpers) ---------
 
@@ -218,6 +192,8 @@ tampers <- raw |>
             prop_gt_25_mcse = mcse_proportion(prop_gt_25, k),
             median = q_censored(tampers_censored, 0.5),
             median_mcse = mcse_median(tampers_censored),
+            iqr_lower = q_censored(tampers_censored, 0.25),
+            iqr_upper = q_censored(tampers_censored, 0.75),
             pi_lower = q_censored(tampers_censored, 0.025),
             pi_upper = q_censored(tampers_censored, 0.975),
             mean_reached = safe_mean(tampers_needed[reached_sig]),
@@ -225,6 +201,8 @@ tampers <- raw |>
             .groups = "drop") |>
   mutate(prop_median = median / n_total,
          prop_median_mcse = median_mcse / n_total,
+         prop_iqr_lower = iqr_lower / n_total,
+         prop_iqr_upper = iqr_upper / n_total,
          prop_pi_lower = pi_lower / n_total,
          prop_pi_upper = pi_upper / n_total)
 
@@ -246,41 +224,63 @@ order_methods <- function(df, setting_name) {
 
 x_breaks <- c(10, seq(25, 200, by = 25)) * 2
 
-# Draft-mode placeholder. A figure whose setting has no results yet would otherwise abort
-# the render (ggplot cannot facet or scale an empty frame); this keeps the figure, its
-# number and its cross-reference in place and says plainly what is missing.
-placeholder_plot <- function(msg) {
-  ggplot() +
-    annotate("text", x = 0, y = 0, label = msg, size = 3, colour = "grey35") +
-    theme_void()
+# Strategy is a nominal variable, so the palette is qualitative rather than sequential:
+# five muted but clearly separated hues (sienna, olive, ochre, slate, plum) so that
+# adjacent categories are told apart by hue and not by lightness, as a viridis ramp
+# would require. Ordered so the first three are maximally distinct, since the 2x2
+# setting uses only three.
+earth_palette <- c("#B4573B", "#7A8C4E", "#3F6B7A", "#D9A441", "#5C4A5E")
+
+# Plot text is set well below the document's 10pt body text so that, at the fixed figure
+# width of one text block, more of the figure is panel and less is label.
+theme_effort <- function() {
+  theme_minimal(base_size = 8) +
+    theme(panel.grid.minor = element_blank(),
+          legend.key.size = unit(0.8, "lines"),
+          plot.margin = margin(2, 2, 2, 2))
 }
-has_setting <- function(s) any(tampers$setting == s)
 
 plot_effort <- function(df, y_count_lab, dodge = 27) {
-  # an interval bar is omitted (NA) where its upper percentile falls among the
-  # never-significant datasets, since no finite value exists to draw it to
-  df <- df |> mutate(pi_upper_f = ifelse(is.finite(pi_upper), pi_upper, NA_real_),
-                     prop_pi_upper_f = ifelse(is.finite(prop_pi_upper), prop_pi_upper, NA_real_),
+  # Bars are interquartile ranges, not 95% prediction intervals. One cell (correlation
+  # duplication at N = 20, where the duplication pool is only two points) has a 97.5th
+  # percentile at nearly nine times the sample size, which would set the y scale for every
+  # panel and bury the pattern the figure exists to show. The prediction intervals are in
+  # @tbl-results.
+  #
+  # Where more than a quarter of datasets never attain significance, the upper quartile has
+  # no finite value. Simply dropping the bar there reads as a plotting failure rather than
+  # as a result, so those bars are instead drawn to the top of the data range and capped
+  # with a hollow triangle, the usual convention for an interval that continues beyond the
+  # axis. The lower quartile and the median are still drawn wherever they are finite.
+  cap_count <- max(df$iqr_upper[is.finite(df$iqr_upper)], na.rm = TRUE) * 1.04
+  cap_prop  <- max(df$prop_iqr_upper[is.finite(df$prop_iqr_upper)], na.rm = TRUE) * 1.04
+  df <- df |> mutate(censored = !is.finite(iqr_upper),
+                     iqr_upper_f = ifelse(censored, cap_count, iqr_upper),
+                     prop_iqr_upper_f = ifelse(censored, cap_prop, prop_iqr_upper),
                      median_f = ifelse(is.finite(median), median, NA_real_),
                      prop_median_f = ifelse(is.finite(prop_median), prop_median, NA_real_))
+  cens <- df |> filter(censored)
   p1 <- ggplot(df, aes(n_total, median_f, color = method)) +
     geom_point(position = position_dodge(width = dodge), size = 1) +
-    geom_linerange(aes(ymin = pi_lower, ymax = pi_upper_f), position = position_dodge(width = dodge)) +
+    geom_linerange(aes(ymin = iqr_lower, ymax = iqr_upper_f), position = position_dodge(width = dodge)) +
+    geom_point(data = cens, aes(y = iqr_upper_f), shape = 24, size = 1.1, fill = "white",
+               position = position_dodge(width = dodge)) +
     labs(x = "Total sample size (N)", y = y_count_lab, color = "Strategy") +
     scale_y_continuous(limits = c(0, NA), breaks = breaks_pretty(n = 6)) +
     scale_x_continuous(breaks = x_breaks) +
-    scale_color_viridis_d(begin = 0, end = 0.85) +
-    theme_linedraw() +
-    theme(panel.grid.minor = element_blank())
+    scale_color_manual(values = earth_palette) +
+    theme_effort()
   p2 <- ggplot(df, aes(n_total, prop_median_f, color = method)) +
     geom_point(position = position_dodge(width = dodge), size = 1) +
-    geom_linerange(aes(ymin = prop_pi_lower, ymax = prop_pi_upper_f), position = position_dodge(width = dodge)) +
-    labs(x = "Total sample size (N)", y = "Proportion of sample tampered", color = "Strategy") +
+    geom_linerange(aes(ymin = prop_iqr_lower, ymax = prop_iqr_upper_f), position = position_dodge(width = dodge)) +
+    geom_point(data = cens, aes(y = prop_iqr_upper_f), shape = 24, size = 1.1, fill = "white",
+               position = position_dodge(width = dodge)) +
+    labs(x = "Total sample size (N)", y = "Tampering operations per original observation",
+         color = "Strategy") +
     scale_y_continuous(labels = percent_format(), limits = c(0, NA), breaks = breaks_pretty(n = 6)) +
     scale_x_continuous(breaks = x_breaks) +
-    scale_color_viridis_d(begin = 0, end = 0.85) +
-    theme_linedraw() +
-    theme(panel.grid.minor = element_blank())
+    scale_color_manual(values = earth_palette) +
+    theme_effort()
   p1 + p2 + plot_layout(ncol = 1, guides = "collect")
 }
 
@@ -303,48 +303,57 @@ mcse_cell <- function(estimate, mcse, min_dp = 0, max_dp = 4){
 interval_cell <- function(lower, upper, dp = 0){
   paste0("[", fmt_num(lower, dp), ", ", fmt_num(upper, dp), "]")
 }
-fmt_pct <- function(x, dp = 1) {
-  ifelse(is.na(x), "---", paste0(formatC(100 * x, format = "f", digits = dp), "\\%"))
-}
-fmt_val <- function(x, dp = 0) ifelse(is.na(x), "---", formatC(x, format = "f", digits = dp))
+fmt_pct <- function(x, dp = 1) paste0(formatC(100 * x, format = "f", digits = dp), "\\%")
+fmt_val <- function(x, dp = 0) formatC(x, format = "f", digits = dp)
 
 # ---- key quantities used inline in the prose ---------------------------------------
 
-# returns NA rather than erroring when a cell is absent, so that a draft rendered from
-# an incomplete set of caches still builds; fmt_pct/fmt_val print NA as an em dash
 grab <- function(s, m, n, col, prev = NA) {
   d <- tampers |> filter(setting == s, method == m, n_total == n)
   if (!is.na(prev)) d <- d |> filter(prevalence == prev)
-  if (nrow(d) == 0) return(NA_real_)
   d[[col]][1]
 }
-safe_range <- function(x, f) if (length(x) == 0 || all(is.na(x))) NA_real_ else f(x, na.rm = TRUE)
 
 continuous_400 <- tampers |>
   filter(setting != "2x2 association", n_total == 400, is.finite(prop_median))
+continuous_20 <- tampers |>
+  filter(setting != "2x2 association", n_total == 20, is.finite(prop_median))
+# how effort scales: the count grows sub-linearly in N, so the proportion falls
+scaling <- tampers |>
+  filter(setting != "2x2 association", n_total %in% c(20, 400), is.finite(median)) |>
+  select(setting, method, n_total, median, prop_median) |>
+  pivot_wider(names_from = n_total, values_from = c(median, prop_median)) |>
+  mutate(fold_prop = prop_median_20 / prop_median_400)
 gt10_400 <- tampers |> filter(setting != "2x2 association", n_total == 400) |> pull(prop_gt_10)
 never_400 <- tampers |> filter(setting != "2x2 association", n_total == 400) |> pull(never)
 
 key <- list(
   # range of the median proportion tampered at the largest N, across the two continuous settings
-  prop400_min = safe_range(continuous_400$prop_median, min),
-  prop400_max = safe_range(continuous_400$prop_median, max),
+  prop400_min = min(continuous_400$prop_median),
+  prop400_max = max(continuous_400$prop_median),
+  prop20_min  = min(continuous_20$prop_median),
+  prop20_max  = max(continuous_20$prop_median),
+  count20_min = min(continuous_20$median),   count20_max = max(continuous_20$median),
+  count400_min = min(continuous_400$median), count400_max = max(continuous_400$median),
+  fold_prop_min = min(scaling$fold_prop),    fold_prop_max = max(scaling$fold_prop),
   # cheapest distribution-preserving strategies at N = 100
   swap_median_100   = grab("Mean difference", "Condition switching", 100, "median"),
   repair_median_100 = grab("Correlation", "Re-pairing", 100, "median"),
   # proportion of datasets needing more than 10% of the sample at N = 400, across continuous strategies
-  gt10_400_max = safe_range(gt10_400, max),
-  gt10_400_min = safe_range(gt10_400, min),
-  never_400_max = safe_range(never_400, max),
+  gt10_400_max = max(gt10_400),
+  gt10_400_min = min(gt10_400),
+  never_400_max = max(never_400),
   # structural impossibility at the rare-outcome extreme
   lowprev_drop_never_20 = grab("2x2 association", "Dropping", 20, "never", prev = 0.05),
-  k_iterations = safe_range(tampers$k, max)
+  k_iterations = max(tampers$k)
 )
 ```
 
+# Introduction
+
 In November 2019, the pivotal trial of a treatment for ANCA-associated vasculitis was unblinded and its primary analysis run. The result was not significant (*p* = .1025). According to a subsequent letter from the US Food and Drug Administration, unblinded personnel employed by the sponsor then selected nine of the trial's 331 patients for re-adjudication of their remission status, having first confirmed that reclassifying five of them would move the study across the significance threshold. The five were reclassified, the database was re-locked, and the re-run analysis returned *p* = .0132. That analysis was the only one submitted in support of approval, which was granted in 2021. In April 2026 the FDA proposed to withdraw it, concluding that the integrity of the trial had been compromised; the sponsor contests this and a hearing is pending [@us_food_and_drug_administration_center_for_drug_evaluation_and_research_proposal_2026]. Whatever its resolution, one feature of the case is worth dwelling on. Five records out of 331, just 1.5% of the sample, separated a failed trial from a successful one.
 
-How often does this happen? Meta-analysis of the survey literature puts self-admitted research misconduct at 2.9% of researchers (95% CI [2.1, 3.8]), comprising 1.9% for fabrication and 3.3% for falsification, while 15.5% report having witnessed it in others [@xie_prevalence_2021; see also @fanelli_how_2009]. When the National Survey on Research Integrity used a randomized response design to give respondents provable deniability, admitted fabrication rose to 4.3% and falsification to 4.2% [@gopalakrishna_prevalence_2022]. From the other side of the desk, 24% of consulting biostatisticians in a US national survey had been asked, at least once in the preceding five years, to remove or alter data records to better support a research hypothesis [@wang_researcher_2018]. These are not the rates of a vanishing phenomenon, and each is likely a lower bound of the true prevalence. 
+How often does it occur that data are simply tampered with until statistical significance is reached? Meta-analysis of the survey literature puts self-admitted research misconduct at 2.9% of researchers (95% CI [2.1, 3.8]), comprising 1.9% for fabrication and 3.3% for falsification, while 15.5% report having witnessed it in others [@xie_prevalence_2021; see also @fanelli_how_2009]. When the National Survey on Research Integrity used a randomized response design to give respondents provable deniability, admitted fabrication rose to 4.3% and falsification to 4.2% [@gopalakrishna_prevalence_2022]. From the other side of the desk, 24% of consulting biostatisticians in a US national survey had been asked, at least once in the preceding five years, to remove or alter data records to better support a research hypothesis [@wang_researcher_2018]. These are not the rates of a vanishing phenomenon, and each is likely a lower bound of the true prevalence. 
 
 Prevalence, though, is only half the question. The other half is how 'effective' such data manipulations actually are. Here, the literature is largely silent. @chambers_seven_2017 set out a "dirty dozen" of ways to guarantee significant results even under the null hypothesis, the second of which is switching participants between conditions. @brown_condition_2020 posted a short simulation of the efficacy of this in a blog post. Both convey the same intuition that a handful of unjustified changes to the data is enough to produce statistically significant results in many cases, but neither is a systematic assessment. The field has no systematic account of how much tampering a given strategy requires, whether that requirement grows with sample size, how the strategies compare with one another, or how large an effect they leave behind.
 
@@ -354,9 +363,9 @@ Quantifying the indefensible practices is worth doing because of how researchers
 
 This perspective is an explicitly social-epistemological one, which understands researcher behaviors as a set of evolving community norms rather than moral acts. Equally, this perspective is concerned only with the undesirable statistical consequences of certain researcher behaviors, but is agnostic to researchers' intent when taking them. With that being said, at a human level, it is easier to imagine a researcher who deletes a small number of data points to 'reveal' an effect they strongly believe is there, lying just under the surface of the data, when it is not (e.g., cases of 'qualitative exclusion strategies': @schiller_addendum_2018) than to imagine scientists simply making up datasets wholesale [although the latter does occur; @verfaellie_case_2011], despite both strategies producing false-positive results. Regardless of whether these two scenarios can be equated in their intent, it is an open question whether they can be equated in their outcomes, as it is generally unclear how relatively robust or fragile most results are to modifications of only a small number of data points [although see @spiess_scientific_2024]. 
 
-To this end, I invert the design used in previous simulations to understand the impact of *p*-hacking. Where @stefan_big_2023 fix a budget of manipulations and measure the resulting false-positive rate, I fix the goal — statistical significance — and measure the number of tampered data points required to reach it. I take this to be the more ecologically valid framing for deliberate tampering: an analyst who has decided to manufacture a result does not set a budget in advance and stop when it is exhausted, but continues until the *p*-value crosses. It also yields effort directly, in units of edited data points. 
+Some definition matters are worth considering, insofar as they informed which tampering strategies were simulated. The US government's Office of Research Integrity provides influential definitions of research misconduct and its forms [@steneck_introduction_2007]. According to the ORI definitions, fabrication is "making up data or results and recording or reporting them". This is represented by the the fabrication, duplication and replacement strategies simulated here, which add data points. Falsification is "manipulating research materials, equipment, or processes, or changing or omitting data or results such that the research is not accurately represented in the research record". This is represented by the dropping strategy (which omits observations) and the condition switching and re-pairing strategies (which change labels and pairings without adding or deleting anything). The taxonomy that carries the regulatory and moral weight thus classifies by mechanism: was the data point invented, or was it altered or omitted? Of course, the line is not necessarily clear here, given that an altered data point is equivalent to a removed data point plus a newly added data point. 
 
-In this article I do three things. First, I formalize data tampering as a family of iterative greedy algorithms (dropping, condition switching, re-pairing, duplication, fabrication, and replacement) applied to three of the most common elementary designs: the two-group mean difference (Student's *t*-test), the Pearson correlation, and the 2×2 association (chi-square test). Second, I estimate the effort each strategy requires, with the full design specified under the ADEMP framework [@morris_using_2019; @siepe_simulation_2024] and every estimate accompanied by a Monte Carlo standard error. Because the simulations run without any tampering budget, the complete distribution of required effort is observed, and the proportion of datasets exceeding any given budget is recovered afterwards from the same runs. Third, I show that the effort required is small, that it does not grow with sample size in proportional terms, and that the strategies hardest to detect are among the cheapest.
+In this article I do three things. First, I formalize data tampering as a family of iterative greedy algorithms (dropping, condition switching, re-pairing, duplication, fabrication, and replacement) applied to three of the most common elementary designs: the two-group mean difference (Student's *t*-test), the Pearson correlation, and the 2×2 association (chi-square test). Second, I estimate the effort each strategy requires, with the full design specified under the ADEMP framework [@morris_using_2019; @siepe_simulation_2024] and every estimate accompanied by a Monte Carlo standard error. I invert the design used in previous simulations to understand the impact of *p*-hacking. Where @stefan_big_2023 fix a budget of manipulations and measure the resulting false-positive rate, I fix the goal (statistical significance) and measure the number of tampered data points required to reach it. I take this to be the more ecologically valid framing for deliberate tampering: an analyst who has decided to manufacture a result does not set a budget in advance and stop when it is exhausted, but continues until the *p*-value crosses. It also yields effort directly, in units of edited data points. Because the simulations run without any tampering budget, the complete distribution of required effort is observed, and the proportion of datasets exceeding any given budget is recovered afterwards from the same runs. Third, I show that the effort required is small, that it does not grow with sample size in proportional terms, and that the strategies hardest to detect are among the cheapest.
 
 # Methods
 
@@ -396,133 +405,123 @@ Every strategy is an iterative greedy procedure: generate a null dataset, test i
 
 The label-switching column deserves emphasis because of its forensic properties: condition switching leaves every univariate distribution untouched, and re-pairing preserves both marginal distributions *exactly* (the set of *y*-values is only permuted), so neither is detectable by any univariate check. Swapping *entire* conditions, as opposed to individual cases, is handled analytically rather than simulated: it merely doubles the directional false-positive rate to $\alpha$, adding $\tfrac{1}{2}\alpha$.
 
-No tampering budget is imposed. Each strategy runs until significance is reached or a structural limit is hit — the data are exhausted under dropping, no improving re-pairing exists, a donor cell empties in the 2×2 — with a loop guard at 10× the sample size as a termination backstop for pathological greedy stalls (e.g., a one-step greedy cannot cross the two-sided test's $p \approx 1$ valley when the initial dataset happens to show a strong effect in the *opposite* direction; such iterations, well under 1% of runs, are recorded as never attaining significance). Because the full unbudgeted counts are recorded, the proportion of datasets exceeding *any* tampering budget is computable after the fact; I report budgets of 10% and 25% of the sample.
+No tampering budget is imposed. Each strategy runs until significance is reached or a structural limit is hit, such removing all datat under dropping. A loop guard is included at 10× the sample size as a termination backstop (e.g., a one-step greedy cannot cross the two-sided test's $p \approx 1$ valley when the initial dataset happens to show a strong effect in the *opposite* direction; such iterations, well under 1% of runs, are recorded as never attaining significance). Because the full unbudgeted counts are recorded, the proportion of datasets exceeding *any* tampering budget is computable after the fact; I report budgets of 10% and 25% of the sample.
 
 ## Performance measures and Monte Carlo uncertainty
 
-An iteration that never attains significance has no finite tamper count — it is right-censored. All percentile-based summaries (median, 95% prediction interval) are therefore computed over all iterations with the never-significant ones ranked above every finite count; a percentile falling among them is reported as *never* rather than being silently replaced by the survivors' percentile, which would answer a different question ("given that tampering worked, how many edits?") and bias the effort downward. The mean cannot be computed this way at all (the censored counts are unbounded above), so means are reported only as conditional-on-success skew diagnostics. The 95% prediction interval is the 2.5th–97.5th percentile of the tamper counts across iterations: the range within which a single new study's required effort would fall 95% of the time.
+An iteration that never attains significance has no finite tamper count (i.e., is right-censored). All percentile-based summaries (median, 95% prediction interval) are therefore computed over all iterations with the never-significant ones ranked above every finite count; a percentile falling among them is reported as *never* rather than being silently replaced by the survivors' percentile, which would answer a different question ("given that tampering worked, how many edits?") and bias the effort downward. The mean cannot be computed this way at all (the censored counts are unbounded above), so means are reported only as conditional-on-success skew diagnostics. Two intervals are used. The interquartile range is plotted, because one condition (correlation duplication at the smallest sample size) has a 97.5th percentile at nearly nine times the sample and would otherwise set the scale for every panel. The 95% prediction interval is reported in @tbl-results. Effort as a proportion is expressed relative to the *original* sample size, so strategies that append cases, or re-tamper a case already tampered with, can exceed 1.
 
 Every reported estimate carries a Monte Carlo standard error: binomial for proportions, closed-form for means, and nonparametric bootstrap for medians [@morris_using_2019; @siepe_simulation_2024]. In tables, decimal places are set from the MCSE (two significant figures, with the estimate rounded to match) rather than fixed per table. Simulations were parallelized with reproducible L'Ecuyer–CMRG streams, so results are identical regardless of worker count.
 
 # Results
 
 ```{r}
-#| label: draft-status
-#| results: asis
-
-# Draft-only status note. Prints nothing when draft_mode is FALSE, so the finished
-# article is unaffected. Two things a reader of a draft needs to know: which cells are
-# absent, and whether the runs on disk came from the current (unbudgeted) design or the
-# superseded one that capped tampering at 50% of the sample. The latter is not recorded
-# in the caches, so it is inferred as evidence rather than asserted: under the capped
-# design no tamper count could exceed half the sample.
-if (draft_mode) {
-  over_half <- tampers |>
-    mutate(frac = pmax(prop_median, ifelse(is.finite(prop_pi_upper), prop_pi_upper, 0))) |>
-    summarise(m = max(frac[is.finite(frac)], na.rm = TRUE)) |> pull(m)
-
-  impl <- sources |> filter(available) |> count(implementation)
-  bits <- c(sprintf("This draft was rendered from %d of the %d simulation cells (%s).",
-                    sum(sources$available), nrow(sources),
-                    paste(sprintf("%d from the %s implementation", impl$n, impl$implementation),
-                          collapse = ", ")))
-  if (nrow(missing_sources) > 0) {
-    bits <- c(bits, sprintf("Not yet available: %s. Figures, tables and the ordering of strategies omit %s.",
-                            paste0(missing_sources$method, " (", missing_sources$setting,
-                                   ifelse(is.na(missing_sources$prevalence), "",
-                                          paste0(", prevalence ", missing_sources$prevalence)), ")",
-                                   collapse = "; "),
-                            if (nrow(missing_sources) == 1) "it" else "them"))
-  }
-  bits <- c(bits, sprintf(paste("The largest tamper count observed anywhere in these runs is %s of the sample,",
-                                "which is %s with the superseded design that capped tampering at 50%%; treat every",
-                                "number below as provisional until the definitive run is in place."),
-                          fmt_pct(over_half),
-                          if (over_half > 0.5) "**inconsistent**" else "consistent"))
-  cat("::: {.callout-note appearance=\"simple\"}\n**Draft status.** ", paste(bits, collapse = " "), "\n:::\n\n", sep = "")
-}
-```
-
-
-```{r}
 #| label: fig-meandiff
-#| fig-cap: 'Mean-difference (t-test) setting: the number of tampered data points needed to first reach p < .05 (top) and the same effort as a proportion of the sample (bottom). Points are censoring-aware medians and bars are 95% prediction intervals (2.5th–97.5th percentile across iterations); a bar is omitted where its upper percentile falls among datasets that never attained significance. Strategies are ordered by median proportion tampered. K = 10,000 iterations per condition.'
+#| fig-cap: 'Mean-difference (t-test) setting: the number of tampered data points needed to first reach p < .05 (top) and the same effort as a proportion of the sample (bottom). Points are censoring-aware medians and bars are interquartile ranges. A bar ending in a hollow triangle is open-ended: more than a quarter of those datasets never attained significance, so the upper quartile has no finite value and the bar is drawn to the top of the data range. The lower panel expresses effort relative to the *original* sample size, so strategies that append cases or re-tamper the same case can exceed 1. Strategies are ordered by median proportion tampered. K = 10,000 iterations per condition.'
 #| fig-height: 6.2
 #| fig-width: 5.35
 #| out-width: 100%
 
-if (has_setting("Mean difference")) {
-  tampers |>
-    filter(setting == "Mean difference") |>
-    order_methods("Mean difference") |>
-    plot_effort("Tampered data points to p < .05")
-} else placeholder_plot("Mean-difference results not yet available in this draft.")
+tampers |>
+  filter(setting == "Mean difference") |>
+  order_methods("Mean difference") |>
+  plot_effort("Tampered data points to p < .05")
 ```
 
 ```{r}
 #| label: fig-correlation
-#| fig-cap: 'Correlation setting: tampered data points needed to first reach p < .05 (top) and as a proportion of the sample (bottom). Points are censoring-aware medians, bars 95% prediction intervals; a bar is omitted where its upper percentile is never attained. K = 10,000 iterations per condition.'
+#| fig-cap: 'Correlation setting: tampered data points needed to first reach p < .05 (top) and as a proportion of the sample (bottom). Points are censoring-aware medians and bars are interquartile ranges; a bar ending in a hollow triangle is open-ended, its upper quartile falling among datasets that never attained significance. Effort in the lower panel is relative to the *original* sample size, so strategies that append cases can exceed 1. K = 10,000 iterations per condition.'
 #| fig-height: 6.2
 #| fig-width: 5.35
 #| out-width: 100%
 
-if (has_setting("Correlation")) {
-  tampers |>
-    filter(setting == "Correlation") |>
-    order_methods("Correlation") |>
-    plot_effort("Tampered data points to p < .05")
-} else placeholder_plot("Correlation results not yet available in this draft.")
+tampers |>
+  filter(setting == "Correlation") |>
+  order_methods("Correlation") |>
+  plot_effort("Tampered data points to p < .05")
 ```
 
 ```{r}
 #| label: fig-2x2
-#| fig-cap: '2×2 association (chi-square) setting, by outcome prevalence: tampered cells needed to first reach p < .05 as a proportion of the sample. Points are censoring-aware medians, bars 95% prediction intervals; a bar is omitted where its upper percentile is never attained. At prevalence .05 and small N, a majority of datasets cannot be pushed to significance at all by dropping (the median itself is never attained and no point is drawn). K = 10,000 iterations per condition.'
-#| fig-height: 3.7
+#| fig-cap: '2x2 association (chi-square) setting, by outcome prevalence: the number of tampered cells needed to first reach p < .05 (top) and the same effort as a proportion of the sample (bottom). Points are censoring-aware medians and bars are interquartile ranges; a bar ending in a hollow triangle is open-ended, its upper quartile falling among datasets that never attained significance. At prevalence .05 and N = 20, a majority of datasets cannot be pushed to significance at all by dropping, so even the median is not attained and no point is drawn for it. K = 10,000 iterations per condition.'
+#| fig-height: 6.4
 #| fig-width: 5.35
 #| out-width: 100%
 
-if (!has_setting("2x2 association")) {
-  placeholder_plot("2x2 association results not yet available in this draft.")
-} else {
 d2 <- tampers |>
   filter(setting == "2x2 association") |>
   order_methods("2x2 association") |>
   mutate(prevalence_label = paste0("prevalence = ", prevalence),
-         prop_pi_upper_f = ifelse(is.finite(prop_pi_upper), prop_pi_upper, NA_real_),
+         censored = !is.finite(iqr_upper),
+         median_f = ifelse(is.finite(median), median, NA_real_),
          prop_median_f = ifelse(is.finite(prop_median), prop_median, NA_real_))
+# see plot_effort(): a bar whose upper quartile is never attained is drawn to the top of
+# the data range and capped with a hollow triangle rather than being silently dropped
+cap_c2 <- max(d2$iqr_upper[is.finite(d2$iqr_upper)], na.rm = TRUE) * 1.04
+cap_p2 <- max(d2$prop_iqr_upper[is.finite(d2$prop_iqr_upper)], na.rm = TRUE) * 1.04
+d2 <- d2 |> mutate(iqr_upper_f = ifelse(censored, cap_c2, iqr_upper),
+                   prop_iqr_upper_f = ifelse(censored, cap_p2, prop_iqr_upper))
+cens2 <- d2 |> filter(censored)
 
-ggplot(d2, aes(n_total, prop_median_f, color = method)) +
+# the same two panels as the other settings -- count on top, proportion below -- each
+# split by outcome prevalence
+p_count <- ggplot(d2, aes(n_total, median_f, color = method)) +
   geom_point(position = position_dodge(width = 27), size = 1) +
-  geom_linerange(aes(ymin = prop_pi_lower, ymax = prop_pi_upper_f), position = position_dodge(width = 27)) +
+  geom_linerange(aes(ymin = iqr_lower, ymax = iqr_upper_f), position = position_dodge(width = 27)) +
+  geom_point(data = cens2, aes(y = iqr_upper_f), shape = 24, size = 1.1, fill = "white",
+             position = position_dodge(width = 27)) +
   facet_wrap(~ prevalence_label) +
-  labs(x = "Total sample size (N)", y = "Proportion of sample tampered", color = "Strategy") +
+  labs(x = "Total sample size (N)", y = "Tampered cells to p < .05", color = "Strategy") +
+  scale_y_continuous(limits = c(0, NA), breaks = breaks_pretty(n = 6)) +
+  scale_x_continuous(breaks = x_breaks) +
+  scale_color_manual(values = earth_palette) +
+  theme_effort()
+
+p_prop <- ggplot(d2, aes(n_total, prop_median_f, color = method)) +
+  geom_point(position = position_dodge(width = 27), size = 1) +
+  geom_linerange(aes(ymin = prop_iqr_lower, ymax = prop_iqr_upper_f), position = position_dodge(width = 27)) +
+  geom_point(data = cens2, aes(y = prop_iqr_upper_f), shape = 24, size = 1.1, fill = "white",
+             position = position_dodge(width = 27)) +
+  facet_wrap(~ prevalence_label) +
+  labs(x = "Total sample size (N)", y = "Tampering operations per original observation",
+       color = "Strategy") +
   scale_y_continuous(labels = percent_format(), limits = c(0, NA), breaks = breaks_pretty(n = 6)) +
   scale_x_continuous(breaks = x_breaks) +
-  scale_color_viridis_d(begin = 0, end = 0.85) +
-  theme_linedraw() +
-  theme(panel.grid.minor = element_blank(), legend.position = "bottom")
-}
+  scale_color_manual(values = earth_palette) +
+  theme_effort()
+
+p_count + p_prop + plot_layout(ncol = 1, guides = "collect") & theme(legend.position = "bottom")
 ```
 
-## Effort is small and proportionally flat in sample size
+## Effort is small, and falls as a share of the sample as studies grow
 
-Across both continuous settings, the absolute number of tampered data points needed to manufacture significance grows with sample size, but the *proportion* of the sample does not (@fig-meandiff, @fig-correlation): at the largest sample size examined ($N = 400$), the median proportion tampered ranges from `r fmt_pct(key$prop400_min)` to `r fmt_pct(key$prop400_max)` across strategies. Manufacturing a false positive is no harder, proportionally, in a large study than in a small one. Framed as a budget: at $N = 400$, the proportion of datasets that would require more than 10% of the sample to be tampered is at most `r fmt_pct(key$gt10_400_max)` for the least efficient continuous-setting strategy, and for the cheapest it is `r fmt_pct(key$gt10_400_min)`. Only `r fmt_pct(key$never_400_max)` of datasets resist the least effective strategy altogether at that sample size.
+Across both continuous settings the absolute number of tampered data points needed to manufacture significance grows with sample size, but only slowly: median counts run from `r fmt_val(key$count20_min)`–`r fmt_val(key$count20_max)` points at $N = 20$ to `r fmt_val(key$count400_min)`–`r fmt_val(key$count400_max)` at $N = 400$, a twentyfold increase in sample size met by roughly a threefold increase in effort (@fig-meandiff, @fig-correlation). Expressed as a share of the sample, effort therefore falls: from `r fmt_pct(key$prop20_min)`–`r fmt_pct(key$prop20_max)` at $N = 20$ to `r fmt_pct(key$prop400_min)`–`r fmt_pct(key$prop400_max)` at $N = 400$, a reduction of between `r fmt_val(key$fold_prop_min, 1)`- and `r fmt_val(key$fold_prop_max, 1)`-fold depending on the strategy. Manufacturing a false positive is not merely no harder in a large study than in a small one; proportionally it is considerably easier. The intuition that a large sample is robust to a few altered observations is exactly backwards. Framed as a budget: at $N = 400$, the proportion of datasets that would require more than 10% of the sample to be tampered is at most `r fmt_pct(key$gt10_400_max)` for the least efficient continuous-setting strategy, and for the cheapest it is `r fmt_pct(key$gt10_400_min)`. Only `r fmt_pct(key$never_400_max)` of datasets resist the least effective strategy altogether at that sample size.
 
-The 2×2 setting is the partial exception that illustrates the mechanism (@fig-2x2). With a rare outcome (prevalence .05) and small samples there is simply not enough signal-bearing data to tamper with: at $N = 20$, `r fmt_pct(key$lowprev_drop_never_20, 0)` of datasets cannot be pushed to significance by dropping at all — the strategy exhausts the table's hostile cells first. Where tampering *is* structurally possible, rare outcomes are cheap to tip, because each fabricated or relabelled case moves the test statistic disproportionately.
+The 2×2 setting is the partial exception that illustrates the mechanism (@fig-2x2). With a rare outcome (prevalence .05) and small samples there is simply not enough signal-bearing data to tamper with: at $N = 20$, `r fmt_pct(key$lowprev_drop_never_20, 0)` of datasets cannot be pushed to significance by dropping at all as the strategy exhausts the table's hostile cells first. Where tampering is structurally possible, rare outcomes are cheap to tip, because each fabricated or relabelled case moves the test statistic disproportionately.
 
 ## The stealthiest strategies are among the cheapest
 
-Strategies in every figure are ordered by their median proportion tampered, computed from the data at render time. The forensically critical result is where the label-switching family sits in that ordering: condition switching (median `r key$swap_median_100` switched labels at $N = 100$) and re-pairing (median `r key$repair_median_100` re-paired values at $N = 100$) reach significance with effort comparable to or lower than the visibly destructive strategies, while leaving every univariate distribution intact — re-pairing preserves both marginals *exactly*. No check of either variable in isolation can detect them; only the joint structure is tampered. Efficiency and detectability are thus not in tension for the would-be fraudster: the cheap strategies include the invisible ones.
+Strategies in every figure are ordered by their median proportion tampered, computed from the data at render time. The forensically critical result is where the label-switching family sits in that ordering. In the two-group design, condition switching is the second cheapest of the five strategies (median `r key$swap_median_100` switched labels at $N = 100$) despite leaving every univariate distribution untouched. Its correlation analogue, re-pairing (median `r key$repair_median_100` re-paired values at $N = 100$), is not the cheapest in its setting. High-leverage replacement and fabrication are cheaper, but it costs about the same as unprincipled case deletion and less than duplication, while preserving both marginal distributions exactly. Neither manipulation is detectable by any check of a variable in isolation; only the joint structure is disturbed. Efficiency and detectability are therefore not in tension for the would-be fraudster: in each setting, at least one of the cheapest strategies is also among the least visible.
+
+```{=latex}
+\clearpage
+\begin{landscape}
+```
 
 ```{r}
 #| label: tbl-results
-#| tbl-cap: "Tampering effort at a representative sample size (total N = 100), by setting and strategy. Values in parentheses are ±1 Monte Carlo standard error. Never is the proportion of datasets for which significance was never attained, tampering having run to a structural limit. The two budget columns are post hoc tampering budgets: the proportion of datasets needing more than that share of the sample tampered, never-significant datasets exceeding every budget by definition. The median is computed over all iterations with never-significant ones ranked above every finite count, and is also given as a proportion of the sample (Prop.); prediction intervals are shown in the figures. D/f/r denotes the duplication, fabrication and replacement strategies, which coincide for binary data."
+#| tbl-cap: "Tampering effort at a representative sample size (total N = 100), by setting and strategy. Values in parentheses are +/-1 Monte Carlo standard error. Never is the proportion of datasets for which significance was never attained, tampering having run to a structural limit. The two budget columns are post hoc tampering budgets: the proportion of datasets needing more than that share of the sample tampered, never-significant datasets exceeding every budget by definition. The median is computed over all iterations with never-significant ones ranked above every finite count, and is also given as a proportion of the sample (Prop.). PI is the 95% prediction interval, the 2.5th-97.5th percentile of the tamper counts across iterations; the figures show interquartile ranges instead, for the reason given in the Methods. D/f/r denotes the duplication, fabrication and replacement strategies, which coincide for binary data."
 
 tampers |>
   filter(n_total == 100) |>
   arrange(setting, prevalence, method) |>
   transmute(Setting = case_when(
-              setting == "2x2 association" ~ paste0("2×2, prev. ", prevalence),
+              # ASCII "x" deliberately: this string is built in R, and the rendering
+              # session runs under a C locale, which converts a non-ASCII character in an
+              # R string literal into the literal text "<U+00D7>" on its way into the
+              # .tex. Prose elsewhere may use a true multiplication sign because that
+              # passes through pandoc rather than R.
+              setting == "2x2 association" ~ paste0("2x2, prev. ", prevalence),
               TRUE ~ as.character(setting)),
             Strategy = str_replace(as.character(method),
                                    "Duplication/fabrication/replacement", "D/f/r"),
@@ -532,40 +531,36 @@ tampers |>
             `> 10%` = mcse_cell(prop_gt_10, prop_gt_10_mcse, min_dp = 3, max_dp = 3),
             `> 25%` = mcse_cell(prop_gt_25, prop_gt_25_mcse, min_dp = 3, max_dp = 3),
             Median = mcse_cell(median, median_mcse, max_dp = 1),
+            `95% PI` = interval_cell(pi_lower, pi_upper),
             Prop. = mcse_cell(prop_median, prop_median_mcse, min_dp = 3, max_dp = 3)) |>
-  kable(booktabs = TRUE, linesep = "", align = c("l", "l", rep("r", 5))) |>
-  kable_styling(latex_options = c("hold_position", "scale_down")) |>
+  kable(booktabs = TRUE, linesep = "", align = c("l", "l", rep("r", 6))) |>
+  kable_styling(latex_options = "hold_position", font_size = 9) |>
   collapse_rows(columns = 1, latex_hline = "major", valign = "top")
+```
+
+```{=latex}
+\end{landscape}
+\clearpage
 ```
 
 # Discussion
 
-## Summary of findings against the aims
+The distance from a null dataset to a statistically significant one is short and cheap. The median effort is a small percentage of the sample across strategies and settings, and for most strategies a minority of datasets require more than 10% of the sample to be tampered. Where tampering fails outright it is because it is structurally impossible rather than merely expensive. Specifically, the rare-outcome 2×2 cells, where too few hostile cases exist to move the table at all. The share of the sample that must be altered falls as samples grow, by roughly an order of magnitude across the range examined, so the intuition that a large study is protected by its size is not merely optimistic but inverted; this extends the finding for *p*-hacking that larger samples alone do not reduce its success rate [@stefan_big_2023]. The strategies that preserve univariate distributions (condition switching and re-pairing) are among the most effective. Further research is necessary to understand the relative statistical detectability of each of these strategies. 
 
-The distance from a null dataset to a statistically significant one is short and cheap. The median effort is a small percentage of the sample across strategies and settings, and for most strategies a minority of datasets require more than 10% of the sample to be tampered. Where tampering fails outright it is because it is structurally impossible rather than merely expensive — the rare-outcome 2×2 cells, where too few hostile cases exist to move the table at all. The proportion of the sample that must be altered does not grow with sample size, so the intuition that large studies are safe from this kind of manipulation is wrong in proportional terms; this parallels the finding for *p*-hacking that larger samples alone do not reduce its success rate [@stefan_big_2023]. The strategies that preserve univariate distributions — condition switching and re-pairing, precisely the ones invisible to univariate forensic checks — are among the cheapest.
-
-## Ethics and disclosure
-
-This article documents weaponisable knowledge, and the framing matters: the simulations are designed to make a continuum visible, not to provide a recipe. The manipulations simulated here have been publicly described for years [@chambers_seven_2017; @brown_condition_2020]; what is added here is quantification.
-
-Consider how the strategies fall under the federal definitions of research misconduct [@steneck_introduction_2007]. *Fabrication* is "making up data or results and recording or reporting them" — the fabrication, duplication and replacement strategies simulated here, which add data points that were never collected. *Falsification* is "manipulating research materials, equipment, or processes, or changing or omitting data or results such that the research is not accurately represented in the research record" — the dropping strategy, which omits genuine observations, and the condition switching and re-pairing strategies, which change labels and pairings without adding or deleting anything. The taxonomy that carries the regulatory and moral weight thus classifies by *mechanism*: did you invent it, or did you alter or omit it?
-
-These results say that mechanism is close to irrelevant to what actually matters. Adding invented cases, deleting inconvenient ones, and relabelling existing ones all require a comparable number of edits. The one clause of the definitions that unifies them is a consequence criterion rather than a mechanism one — *such that the research is not accurately represented in the research record* — and every strategy here satisfies it identically. Each produces a result that did not exist before.
+Adding invented cases, deleting inconvenient ones, and relabelling existing ones all require a comparable number of edits. The one clause of the definitions that unifies them is a consequence criterion rather than a mechanism one, such that the research is not accurately represented in the research record, and every strategy here satisfies it identically. Each produces a result that did not exist before.
 
 The practical asymmetry, then, is not in the acts but in how they are regarded. Excluding inconvenient participants is admitted by 38–43% of researchers and rated as close to defensible; falsifying data is admitted by under 2% and rated as indefensible [@john_measuring_2012]. When respondents are given provable deniability, admitted fabrication and falsification converge to indistinguishable rates [@gopalakrishna_prevalence_2022] — evidence that the gap is substantially one of reporting rather than of behaviour. And since perceived seriousness is the strongest available predictor of engagement [@entradas_shades_2026], a seriousness ranking that is mis-set on the dimension these results measure is not merely an intellectual inconsistency: it is a live cause of the behaviour. Deleting a hostile case and inventing a favourable one are, in effort and in damage to the evidence, the same act.
 
-## Limitations
+The ethics of reporting the results of this simulation study were given considerable thought. Although the simulations were designed to make a continuum visible rather than to provide a recipe, in principle, this article documents knowledge that could be weaponised by bad actors. At the same time, the tampering strategies simulated here have been publicly described for years [@chambers_seven_2017; @brown_condition_2020]; what is added here is quantification. This quantification could help change future scientific behavior, by raising awareness around how impactful even a very small number of data tampers can be.
 
-- Proof of principle, not a fraud model. The strategies are deliberately simple and greedy. Real, detection-aware fraud would trade efficiency for plausibility; conversely, several naive strategies here leave detectable signatures (truncated distributions after dropping; leverage outliers after fabrication; shifted marginal prevalence in the 2×2). The distribution-preserving strategies are the existence proof that effective *and* invisible tampering is cheap.
-- No detectability axis. I measure effort, not the probability that each manipulation would be caught by modern forensic tools [@brown_grim_2017; @heathers_recovering_2018; @wilkinson_inspect-sr_2025]. Crossing effort with detectability is the most valuable extension.
-- A degenerate case in correlation duplication at very small N. With $n = 20$ or $50$ the duplication pool is only two or five points, and duplicating them repeatedly can drive the sample to a significant *negative* correlation, which the two-sided test accepts. These iterations are counted as having reached significance even though the manufactured effect points the wrong way. They are a small fraction of successful tampering overall and are confined to the two smallest samples, but a stopping rule requiring the effect to be in the intended direction would exclude them and would be the better specification.
-- Greedy myopia is part of the procedure. One-step greedy occasionally stalls — most notably when the initial dataset shows a strong effect opposite to the tampering direction, where a two-sided test's $p \approx 1$ valley cannot be crossed one step at a time. These rare failures are recorded as never attaining significance and are a true property of naive tampering, not an artefact; a less myopic tamperer would do better, so the effort estimates here are, if anything, conservative upper bounds.
-- Elementary designs and Normal/binary DGPs. Likert-type outcomes, non-Normal marginals, covariate-adjusted models, and an "alter existing values" strategy distinct from replacement are out of scope. The strategies here also act on the dataset itself; they are therefore complementary to, and not comparable with, the analytic-flexibility strategies compiled by @stefan_big_2023.
-- Single threshold. All results are conditioned on $\alpha$ = .05, two-sided. No tampering budget is imposed in the design, so results under any budget are recoverable from the recorded counts.
+The strategies employed in this simulation are deliberately simple and greedy. Real, detection-aware fraud could plausibly trade efficiency for plausibility. However, there are of course many cases of detection-unaware fraud caught because of impossible or implausible results and data, and the prevalence of undetected, relatively expert research fraud is unknown by its very nature. Conversely, several naive strategies here leave potentially detectable signatures (e.g., truncated distributions after dropping; leverage outliers after fabrication; shifted marginal prevalence in the 2×2). Future research is needed to examine such detectability via statistical means and modern forensic tools [@brown_grim_2017; @heathers_recovering_2018; @wilkinson_inspect-sr_2025]. However, the other distribution-preserving strategies imply that relatively statistically invisible tampering is cheap and effective. Auditable chain-of-custody for data, such as those employed in medical clinical trials that allowed the the US FDA to detect abnormalities in the trial, as discussed in the introduction, would be needed to prevent or detect such forms of tampering [@us_food_and_drug_administration_center_for_drug_evaluation_and_research_proposal_2026]. Infrastructure for auditable chain-of-custody is rare in other fields.  
+
+<!-- A degenerate case in correlation duplication at very small N. With $n = 20$ the duplication pool is only two points. Duplicating those two points repeatedly lets them dominate the sample, and two things follow: the effort required becomes extreme (a 97.5th percentile at nearly nine times the original sample size, against a median of 0.45), and the resulting configuration can be strongly negatively correlated, which a two-sided test accepts as significant even though the manufactured effect points the wrong way. This is a property of the specified procedure rather than of its implementation — the reference and optimized implementations agree exactly here — but it is a pathology, and it is confined to the smallest sample size. Requiring a minimum pool size, or a stopping rule that demands the effect be in the intended direction, would remove it. -->
+<!-- Algorithmic greedy myopia is part of the procedure. One-step greedy occasionally stalls — most notably when the initial dataset shows a strong effect opposite to the tampering direction, where a two-sided test's $p \approx 1$ valley cannot be crossed one step at a time. These rare failures are recorded as never attaining significance and are a true property of naive tampering, not an artefact; a less myopic tamperer would do better, so the effort estimates here are, if anything, conservative upper bounds. -->
 
 # Data and code availability {.unnumbered}
 
-All simulation code, the full per-strategy research compendia (with extended ADEMP specifications, per-condition tables, and Monte Carlo standard errors for every estimate), and the code that renders this manuscript — every number, figure, and table in it is computed from the simulation results at render time — are available at <https://github.com/ianhussey/simulation-impact-of-data-tampering>.
+All simulation code and results, including extended ADEMP specifications, per-condition tables, and Monte Carlo standard errors for every estimate, are available at <https://github.com/ianhussey/simulation-impact-of-data-tampering>.
 
 # References {.unnumbered}
 
