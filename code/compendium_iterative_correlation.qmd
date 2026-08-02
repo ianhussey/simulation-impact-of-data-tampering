@@ -549,9 +549,20 @@ compute_bias_correlation <- function(data) {
 
 # bundle the number of tampered cases with the final-dataset effect size / bias ----
 # reached_sig records whether the study crossed p < .05 (TRUE) or tampering ended at a structural limit without significance (FALSE).
-summarise_tamper_result_corr <- function(data, tampers_needed, reached_sig) {
-  bind_cols(tibble(tampers_needed = tampers_needed, reached_sig = reached_sig),
+summarise_tamper_result_corr <- function(data, tampers_needed, reached_sig, hit_guard = FALSE) {
+  bind_cols(tibble(tampers_needed = tampers_needed, reached_sig = reached_sig,
+                   hit_guard = hit_guard),
             compute_bias_correlation(data))
+}
+
+# Sign-consistent success ----
+# A two-sided test can also come out significant with a NEGATIVE r: initially, in
+# ~alpha/2 of null datasets, or in passing during tampering. A tamperer pushing for a
+# positive correlation has not succeeded in those cases, so success requires BOTH
+# p < .05 AND r > 0. Wrong-direction significance therefore does not stop the loop.
+# Matches sig_attained_cor() in compendium_iterative_correlation_optimised.qmd.
+sig_attained_cor <- function(res) {
+  !is.na(res$p[1]) && res$p[1] < 0.05 && isTRUE(res$r[1] > 0)
 }
 
 # summarise the bias (Pearson r relative to rho = 0) across iterations ----
@@ -629,20 +640,22 @@ iterative_correlation_drop_once <- function(data) {
 
 run_iterative_correlation_dropping_study <- function(n) {
   data <- generate_uncorrelated_data(n)
-  p <- analyse_correlation(data)$p
-  if (!is.na(p) && p < 0.05) return(summarise_tamper_result_corr(data, 0, TRUE))
+  res <- analyse_correlation(data)
+  if (sig_attained_cor(res)) return(summarise_tamper_result_corr(data, 0, TRUE))
 
   loop_guard <- tamper_loop_guard(n)
   drops <- 0
 
-  while (!is.na(p) && p >= 0.05 && drops < loop_guard) {
+  while (!is.na(res$p[1]) && !sig_attained_cor(res) && drops < loop_guard) {
     if (sum(!is.na(data$x)) < 4) break # keep enough points for cor.test
     data <- iterative_correlation_drop_once(data)
     drops <- drops + 1
-    p <- analyse_correlation(data)$p
+    res <- analyse_correlation(data)
   }
 
-  summarise_tamper_result_corr(data, drops, !is.na(p) && p < 0.05)
+  reached <- sig_attained_cor(res)
+  summarise_tamper_result_corr(data, drops, reached,
+                               hit_guard = !reached && drops >= loop_guard)
 }
 
 ```
@@ -748,21 +761,23 @@ iterative_correlation_repair_once <- function(data) {
 
 run_iterative_correlation_repairing_study <- function(n) {
   data <- generate_uncorrelated_data(n)
-  p <- analyse_correlation(data)$p
-  if (!is.na(p) && p < 0.05) return(summarise_tamper_result_corr(data, 0, TRUE))
+  res <- analyse_correlation(data)
+  if (sig_attained_cor(res)) return(summarise_tamper_result_corr(data, 0, TRUE))
 
   loop_guard <- tamper_loop_guard(n)
   swaps <- 0
 
-  while (!is.na(p) && p >= 0.05 && swaps < loop_guard) {
+  while (!is.na(res$p[1]) && !sig_attained_cor(res) && swaps < loop_guard) {
     new_data <- iterative_correlation_repair_once(data)
     if (isTRUE(all.equal(new_data$y, data$y))) break # comonotonic: cannot improve further
     data <- new_data
     swaps <- swaps + 2 # two cases have their y-value altered
-    p <- analyse_correlation(data)$p
+    res <- analyse_correlation(data)
   }
 
-  summarise_tamper_result_corr(data, swaps, !is.na(p) && p < 0.05)
+  reached <- sig_attained_cor(res)
+  summarise_tamper_result_corr(data, swaps, reached,
+                               hit_guard = !reached && swaps >= loop_guard)
 }
 
 ```
@@ -852,20 +867,22 @@ run_iterative_correlation_duplication_study <- function(n,
     slice_max(cross, prop = proportion) |>
     dplyr::select(x, y)
 
-  p <- analyse_correlation(data)$p
-  if (!is.na(p) && p < 0.05) return(summarise_tamper_result_corr(data, 0, TRUE))
+  res <- analyse_correlation(data)
+  if (sig_attained_cor(res)) return(summarise_tamper_result_corr(data, 0, TRUE))
 
   loop_guard <- tamper_loop_guard(n)
   dups <- 0
 
-  while (!is.na(p) && p >= 0.05 && dups < loop_guard) {
+  while (!is.na(res$p[1]) && !sig_attained_cor(res) && dups < loop_guard) {
     dup <- pool |> sample_n(1) |> mutate(row_id = max(data$row_id) + 1)
     data <- bind_rows(data, dup)
     dups <- dups + 1
-    p <- analyse_correlation(data)$p
+    res <- analyse_correlation(data)
   }
 
-  summarise_tamper_result_corr(data, dups, !is.na(p) && p < 0.05)
+  reached <- sig_attained_cor(res)
+  summarise_tamper_result_corr(data, dups, reached,
+                               hit_guard = !reached && dups >= loop_guard)
 }
 
 ```
@@ -951,13 +968,13 @@ run_iterative_correlation_fabrication_study <- function(n,
                                                         fabricated_magnitude,
                                                         fabricated_sd) {
   data <- generate_uncorrelated_data(n)
-  p <- analyse_correlation(data)$p
-  if (!is.na(p) && p < 0.05) return(summarise_tamper_result_corr(data, 0, TRUE))
+  res <- analyse_correlation(data)
+  if (sig_attained_cor(res)) return(summarise_tamper_result_corr(data, 0, TRUE))
 
   loop_guard <- tamper_loop_guard(n)
   adds <- 0
 
-  while (!is.na(p) && p >= 0.05 && adds < loop_guard) {
+  while (!is.na(res$p[1]) && !sig_attained_cor(res) && adds < loop_guard) {
     new_pos <- tibble(x = rnorm(1, fabricated_magnitude, fabricated_sd),
                       y = rnorm(1, fabricated_magnitude, fabricated_sd))
     new_neg <- tibble(x = rnorm(1, -fabricated_magnitude, fabricated_sd),
@@ -966,10 +983,12 @@ run_iterative_correlation_fabrication_study <- function(n,
 
     data <- bind_rows(data, new)
     adds <- adds + 2
-    p <- analyse_correlation(data)$p
+    res <- analyse_correlation(data)
   }
 
-  summarise_tamper_result_corr(data, adds, !is.na(p) && p < 0.05)
+  reached <- sig_attained_cor(res)
+  summarise_tamper_result_corr(data, adds, reached,
+                               hit_guard = !reached && adds >= loop_guard)
 }
 
 ```
@@ -1057,13 +1076,13 @@ run_iterative_correlation_replacement_study <- function(n,
                                                         fabricated_magnitude,
                                                         fabricated_sd) {
   data <- generate_uncorrelated_data(n)
-  p <- analyse_correlation(data)$p
-  if (!is.na(p) && p < 0.05) return(summarise_tamper_result_corr(data, 0, TRUE))
+  res <- analyse_correlation(data)
+  if (sig_attained_cor(res)) return(summarise_tamper_result_corr(data, 0, TRUE))
 
   loop_guard <- tamper_loop_guard(n)
   repl <- 0
 
-  while (!is.na(p) && p >= 0.05 && repl < loop_guard) {
+  while (!is.na(res$p[1]) && !sig_attained_cor(res) && repl < loop_guard) {
     d <- data |> mutate(cross = (x - mean(x)) * (y - mean(y)))
     to_replace <- d |> slice_min(cross, n = 1)
 
@@ -1074,10 +1093,12 @@ run_iterative_correlation_replacement_study <- function(n,
 
     data <- data |> mutate(y = ifelse(row_id == to_replace$row_id, new_y, y))
     repl <- repl + 1
-    p <- analyse_correlation(data)$p
+    res <- analyse_correlation(data)
   }
 
-  summarise_tamper_result_corr(data, repl, !is.na(p) && p < 0.05)
+  reached <- sig_attained_cor(res)
+  summarise_tamper_result_corr(data, repl, reached,
+                               hit_guard = !reached && repl >= loop_guard)
 }
 
 ```

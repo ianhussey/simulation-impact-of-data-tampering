@@ -323,9 +323,23 @@ compute_bias <- function(data) {
 # at a structural limit / the loop guard without significance (FALSE). Tracking this
 # explicitly — rather than inferring it from the count — means a result can never be
 # silently dropped from both the central-tendency stats and the never-attained proportion.
-summarise_tamper_result <- function(data, tampers_needed, reached_sig) {
-  bind_cols(tibble(tampers_needed = tampers_needed, reached_sig = reached_sig),
+summarise_tamper_result <- function(data, tampers_needed, reached_sig, hit_guard = FALSE) {
+  bind_cols(tibble(tampers_needed = tampers_needed, reached_sig = reached_sig,
+                   hit_guard = hit_guard),
             compute_bias(data))
+}
+
+# Sign-consistent success ----
+# A two-sided test can also come out significant with the effect in the WRONG direction
+# (intervention < control): initially, in ~alpha/2 of null datasets, or in passing during
+# tampering. A tamperer pushing for a positive effect has not succeeded in those cases, so
+# success requires BOTH p < .05 AND a positive intervention-minus-control difference.
+# Wrong-direction significance therefore does not stop the loop. Matches
+# sig_attained_meandiff() in compendium_iterative_ttest_optimised.qmd.
+sig_attained_meandiff <- function(p_val, data) {
+  if (is.na(p_val) || p_val >= 0.05) return(FALSE)
+  d <- data[!is.na(data$score), , drop = FALSE]
+  isTRUE(mean(d$score[d$condition == "intervention"]) > mean(d$score[d$condition == "control"]))
 }
 
 # # manual t-test p-value calculation function
@@ -775,13 +789,13 @@ run_iterative_dropping_study <- function(n_per_condition,
 
   # Initial p-value
   p_val <- analyse_data(data)$p[1]
-  if (p_val < 0.05) return(summarise_tamper_result(data, 0, TRUE))
+  if (sig_attained_meandiff(p_val, data)) return(summarise_tamper_result(data, 0, TRUE))
 
   n_total <- nrow(data)
   loop_guard <- tamper_loop_guard(n_total)
   drops_so_far <- 0
 
-  while (!is.na(p_val) && p_val >= 0.05 && drops_so_far < loop_guard) {
+  while (!is.na(p_val) && !sig_attained_meandiff(p_val, data) && drops_so_far < loop_guard) {
     # Stop if dropping would leave a condition with fewer than 2 cases
     data_incl <- data |> filter(!is.na(score))
     if (any(table(data_incl$condition) < 2)) break
@@ -791,7 +805,9 @@ run_iterative_dropping_study <- function(n_per_condition,
     p_val <- analyse_data(data)$p[1]
   }
 
-  return(summarise_tamper_result(data, drops_so_far, !is.na(p_val) && p_val < 0.05))
+  reached <- sig_attained_meandiff(p_val, data)
+  return(summarise_tamper_result(data, drops_so_far, reached,
+                                 hit_guard = !reached && drops_so_far >= loop_guard))
 }
 
 ```
@@ -925,7 +941,7 @@ run_iterative_condition_swap_study <- function(n_per_condition,
   res <- analyse_data(data)
   p_val <- res$p[1]
 
-  if(p_val < 0.05) {
+  if (sig_attained_meandiff(p_val, data)) {
     return(summarise_tamper_result(data, 0, TRUE))
   }
 
@@ -933,7 +949,7 @@ run_iterative_condition_swap_study <- function(n_per_condition,
   loop_guard <- tamper_loop_guard(n_total)
   swaps_so_far <- 0
 
-  while(p_val >= 0.05 && swaps_so_far < loop_guard) {
+  while (!is.na(p_val) && !sig_attained_meandiff(p_val, data) && swaps_so_far < loop_guard) {
     # alternate swap direction so group sizes stay balanced over pairs of swaps
     move_intervention_to_control <- (swaps_so_far %% 2 == 0)
     data <- iterative_condition_swap_once(data, move_intervention_to_control)
@@ -942,7 +958,9 @@ run_iterative_condition_swap_study <- function(n_per_condition,
     p_val <- res$p[1]
   }
 
-  return(summarise_tamper_result(data, swaps_so_far, !is.na(p_val) && p_val < 0.05))
+  reached <- sig_attained_meandiff(p_val, data)
+  return(summarise_tamper_result(data, swaps_so_far, reached,
+                                 hit_guard = !reached && swaps_so_far >= loop_guard))
 }
 
 ```
@@ -1076,19 +1094,21 @@ run_iterative_duplication_study <- function(n_per_condition,
   
   # Initial p-value
   p_val <- analyse_data(data)$p[1]
-  if (p_val < 0.05) return(summarise_tamper_result(data, 0, TRUE))
+  if (sig_attained_meandiff(p_val, data)) return(summarise_tamper_result(data, 0, TRUE))
 
   n_total <- nrow(data)
   loop_guard <- tamper_loop_guard(n_total)
   dups_so_far <- 0
 
-  while (p_val >= 0.05 && dups_so_far < loop_guard) {
+  while (!is.na(p_val) && !sig_attained_meandiff(p_val, data) && dups_so_far < loop_guard) {
     data <- duplicate_from_top_10_percent_once(data, top10_control, top10_intervention)
     p_val <- analyse_data(data)$p[1]
     dups_so_far <- dups_so_far + 2
   }
 
-  return(summarise_tamper_result(data, dups_so_far, !is.na(p_val) && p_val < 0.05))
+  reached <- sig_attained_meandiff(p_val, data)
+  return(summarise_tamper_result(data, dups_so_far, reached,
+                                 hit_guard = !reached && dups_so_far >= loop_guard))
 }
 
 ```
@@ -1219,13 +1239,13 @@ run_iterative_fabrication_study <- function(n_per_condition,
   
   # Initial p-value
   p_val <- analyse_data(data)$p[1]
-  if (p_val < 0.05) return(summarise_tamper_result(data, 0, TRUE))
+  if (sig_attained_meandiff(p_val, data)) return(summarise_tamper_result(data, 0, TRUE))
 
   n_total <- nrow(data)
   loop_guard <- tamper_loop_guard(n_total)
   adds_so_far <- 0
 
-  while (p_val >= 0.05 && adds_so_far < loop_guard) {
+  while (!is.na(p_val) && !sig_attained_meandiff(p_val, data) && adds_so_far < loop_guard) {
     # Add one control and one intervention point per iteration
     new_control <- tibble(condition = "control", score = rnorm(1, mean = fabricated_control_mean, sd = fabricated_control_sd))
     new_intervention <- tibble(condition = "intervention", score = rnorm(1, mean = fabricated_intervention_mean, sd = fabricated_intervention_sd))
@@ -1236,7 +1256,9 @@ run_iterative_fabrication_study <- function(n_per_condition,
     p_val <- analyse_data(data)$p[1]
   }
 
-  return(summarise_tamper_result(data, adds_so_far, !is.na(p_val) && p_val < 0.05))
+  reached <- sig_attained_meandiff(p_val, data)
+  return(summarise_tamper_result(data, adds_so_far, reached,
+                                 hit_guard = !reached && adds_so_far >= loop_guard))
 }
 
 ```
@@ -1350,13 +1372,13 @@ run_iterative_replacement_study <- function(n_per_condition,
   
   # Initial p-value
   p_val <- analyse_data(data)$p[1]
-  if (p_val < 0.05) return(summarise_tamper_result(data, 0, TRUE))
+  if (sig_attained_meandiff(p_val, data)) return(summarise_tamper_result(data, 0, TRUE))
 
   n_total <- nrow(data)
   loop_guard <- tamper_loop_guard(n_total)
   replacements_so_far <- 0
-  
-  while (!is.na(p_val) && p_val >= 0.05 && replacements_so_far < loop_guard) {
+
+  while (!is.na(p_val) && !sig_attained_meandiff(p_val, data) && replacements_so_far < loop_guard) {
     # Filter out NA scores
     data_incl <- data |> filter(!is.na(score))
 
@@ -1372,13 +1394,15 @@ run_iterative_replacement_study <- function(n_per_condition,
     # both candidate replacements and keeping whichever yields the smaller p
     # implements the stated most-helpful-first rule directly, at the cost of one
     # extra t-test per step.
-    # A residual stall remains by design: when the initial dataset shows a strong
-    # effect in the NEGATIVE direction, one-step greedy cannot cross the two-sided
-    # test's valley (weakening the negative effect raises p toward 1 before any
-    # positive effect exists), and the negative-tail control cases are never
-    # candidates. Such iterations (<1% at the smallest n) run to the loop guard and
-    # are recorded as never attaining significance -- a true property of this naive
-    # greedy procedure, not an artefact.
+    # A residual stall remains by design: when the dataset shows a strong effect in
+    # the NEGATIVE direction, one-step greedy cannot cross the two-sided test's
+    # valley (weakening the negative effect raises p toward 1 before any positive
+    # effect exists), and the negative-tail control cases are never candidates.
+    # Because success is sign-consistent, datasets that start out (or pass through)
+    # wrong-direction significance must also be traversed rather than counting as
+    # successes. Iterations that stall run to the loop guard, are flagged hit_guard,
+    # and are recorded as never attaining significance -- a true property of this
+    # naive greedy procedure, not an artefact.
     cand_int <- data_incl |> filter(condition == "intervention") |> slice_min(score, n = 1, with_ties = FALSE)
     cand_ctl <- data_incl |> filter(condition == "control")      |> slice_max(score, n = 1, with_ties = FALSE)
 
@@ -1401,7 +1425,9 @@ run_iterative_replacement_study <- function(n_per_condition,
     replacements_so_far <- replacements_so_far + 1
   }
 
-  return(summarise_tamper_result(data, replacements_so_far, !is.na(p_val) && p_val < 0.05))
+  reached <- sig_attained_meandiff(p_val, data)
+  return(summarise_tamper_result(data, replacements_so_far, reached,
+                                 hit_guard = !reached && replacements_so_far >= loop_guard))
 }
 
 ```

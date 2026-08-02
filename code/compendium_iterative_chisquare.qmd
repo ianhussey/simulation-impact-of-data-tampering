@@ -543,6 +543,20 @@ analyse_chisq <- function(data) {
   tibble(p = res$p.value)
 }
 
+# Sign-consistent success ----
+# The chi-square test is direction-blind: it is also significant when the association
+# points the WRONG way (outcome prevalence higher in the not-exposed group), initially
+# in ~alpha/2 of null tables or in passing during tampering. A tamperer pushing for an
+# exposed-high association has not succeeded in those cases, so success requires BOTH
+# p < .05 AND a strictly higher outcome prevalence in the exposed group.
+# Wrong-direction significance therefore does not stop the loop. Matches
+# sig_attained_2x2() in compendium_iterative_chisquare_optimised.qmd.
+sig_attained_2x2 <- function(p_val, data) {
+  if (is.na(p_val) || p_val >= 0.05) return(FALSE)
+  isTRUE(mean(data$outcome[data$group == "exposed"]) >
+           mean(data$outcome[data$group == "not_exposed"]))
+}
+
 ```
 
 # Duplication/fabrication/replacement
@@ -558,13 +572,13 @@ run_iterative_fabrication_2x2 <- function(n_per_condition, prevalence) {
   data <- generate_null_2x2_data(n_per_condition, prevalence)
 
   p_val <- analyse_chisq(data)$p[1]
-  if (!is.na(p_val) && p_val < 0.05) return(tibble(tampers_needed = 0, reached_sig = TRUE))
+  if (sig_attained_2x2(p_val, data)) return(tibble(tampers_needed = 0, reached_sig = TRUE, hit_guard = FALSE))
 
   n_total <- nrow(data)
   loop_guard <- tamper_loop_guard(n_total)
   adds_so_far <- 0
 
-  while (!is.na(p_val) && p_val >= 0.05 && adds_so_far < loop_guard) {
+  while (!is.na(p_val) && !sig_attained_2x2(p_val, data) && adds_so_far < loop_guard) {
     fabricated_case <- tibble(group = "exposed", outcome = 1)
     fabricated_noncase <- tibble(group = "not_exposed", outcome = 0)
 
@@ -577,7 +591,9 @@ run_iterative_fabrication_2x2 <- function(n_per_condition, prevalence) {
     p_val <- analyse_chisq(data)$p[1]
   }
 
-  return(tibble(tampers_needed = adds_so_far, reached_sig = !is.na(p_val) && p_val < 0.05))
+  reached <- sig_attained_2x2(p_val, data)
+  return(tibble(tampers_needed = adds_so_far, reached_sig = reached,
+                hit_guard = !reached && adds_so_far >= loop_guard))
 }
 
 ```
@@ -707,13 +723,13 @@ run_iterative_dropping_2x2 <- function(n_per_condition, prevalence) {
   data <- generate_null_2x2_data(n_per_condition, prevalence)
 
   p_val <- analyse_chisq(data)$p[1]
-  if (!is.na(p_val) && p_val < 0.05) return(tibble(tampers_needed = 0, reached_sig = TRUE))
+  if (sig_attained_2x2(p_val, data)) return(tibble(tampers_needed = 0, reached_sig = TRUE, hit_guard = FALSE))
 
   n_total <- nrow(data)
   loop_guard <- tamper_loop_guard(n_total)
   drops_so_far <- 0
 
-  while (!is.na(p_val) && p_val >= 0.05 && drops_so_far < loop_guard) {
+  while (!is.na(p_val) && !sig_attained_2x2(p_val, data) && drops_so_far < loop_guard) {
     # hostile cells: a 1 in not_exposed, or a 0 in exposed
     drop_from_notexposed <- runif(1) < 0.5
     idx <- if (drop_from_notexposed) which(data$group == "not_exposed" & data$outcome == 1) else which(data$group == "exposed" & data$outcome == 0)
@@ -733,7 +749,9 @@ run_iterative_dropping_2x2 <- function(n_per_condition, prevalence) {
     p_val <- analyse_chisq(data)$p[1]
   }
 
-  return(tibble(tampers_needed = drops_so_far, reached_sig = !is.na(p_val) && p_val < 0.05))
+  reached <- sig_attained_2x2(p_val, data)
+  return(tibble(tampers_needed = drops_so_far, reached_sig = reached,
+                hit_guard = !reached && drops_so_far >= loop_guard))
 }
 
 ```
@@ -863,13 +881,13 @@ run_iterative_switching_2x2 <- function(n_per_condition, prevalence) {
   data <- generate_null_2x2_data(n_per_condition, prevalence)
 
   p_val <- analyse_chisq(data)$p[1]
-  if (!is.na(p_val) && p_val < 0.05) return(tibble(tampers_needed = 0, reached_sig = TRUE))
+  if (sig_attained_2x2(p_val, data)) return(tibble(tampers_needed = 0, reached_sig = TRUE, hit_guard = FALSE))
 
   n_total <- nrow(data)
   loop_guard <- tamper_loop_guard(n_total)
   switches_so_far <- 0
 
-  while (!is.na(p_val) && p_val >= 0.05 && switches_so_far < loop_guard) {
+  while (!is.na(p_val) && !sig_attained_2x2(p_val, data) && switches_so_far < loop_guard) {
     # alternate direction to keep group sizes balanced over pairs of switches
     move_notexposed_case <- (switches_so_far %% 2 == 0)
     if (move_notexposed_case) {
@@ -894,7 +912,9 @@ run_iterative_switching_2x2 <- function(n_per_condition, prevalence) {
     p_val <- analyse_chisq(data)$p[1]
   }
 
-  return(tibble(tampers_needed = switches_so_far, reached_sig = !is.na(p_val) && p_val < 0.05))
+  reached <- sig_attained_2x2(p_val, data)
+  return(tibble(tampers_needed = switches_so_far, reached_sig = reached,
+                hit_guard = !reached && switches_so_far >= loop_guard))
 }
 
 ```

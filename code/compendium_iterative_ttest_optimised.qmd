@@ -45,7 +45,7 @@ The motivating context is the continuum between questionable research practices 
 
 ## Prior related work
 
-There is no closed-form benchmark for the quantity of interest: the minimal number of tampered points needed to manufacture significance is a property of a greedy tampering algorithm applied to random data, not an estimator of a population parameter, so the study is descriptive rather than a calibration exercise. It connects to work on the fragility of findings to a few influential observations (the `dfstat`/`dfbeta` tradition; see also Spiess et al., 2024 *[citation to be completed]*) and to explicit "how to cheat" framings such as Chambers' (2017) "dirty dozen", whose second tip (condition swapping) is simulated directly here.
+There is no trivial, well-established closed-form benchmark for the quantity of interest, and none was attempted here: the minimal number of tampered points needed to manufacture significance is a property of a tampering algorithm applied to random data, not an estimator of a population parameter, so the study is descriptive rather than a calibration exercise. It connects to work on the fragility of findings to a few influential observations (the `dfstat`/`dfbeta` tradition; see also Spiess et al., 2024 *[citation to be completed]*) and to explicit "how to cheat" framings such as Chambers' (2017) "dirty dozen", whose second tip (condition swapping) is simulated directly here.
 
 ## Aims
 
@@ -70,7 +70,7 @@ Two factors are varied: the tampering strategy and the per-group sample size `n_
 
 - `n_per_condition` ∈ {10, 25, 50, 75, 100, 125, 150, 175, 200}.
 - Tampering strategy ∈ {dropping, condition swapping, duplication, fabrication, replacement}.
-- Held constant: μ = 0 in both groups and σ = 1 (the null); α = .05, two-sided; and the greedy "most-helpful-first" rule (each step alters the single data point that most moves the test toward significance). No tampering budget is imposed: each strategy runs until significance is reached or a structural limit is hit (a group exhausted; no improving move left), with a loop guard at 10× the sample size as a termination backstop only. Tampering budgets (10%, 25%, 50% of the sample) are applied post hoc at summary time.
+- Held constant: μ = 0 in both groups and σ = 1 (the null); α = .05, two-sided, with success defined sign-consistently — an iteration counts as significant only when *p* < .05 *and* the intervention mean exceeds the control mean, so wrong-direction significance (initial or in passing) does not stop tampering; and a "most-hostile-first" targeting rule: each step targets the case(s) most opposed to the desired positive effect. How that target is chosen differs by strategy — replacement is greedy on *p* itself, dropping and swapping target the most extreme case by within-group *z*-score, and duplication samples at random from the most favourable 10% — so the effort estimates characterise these specific, deliberately simple procedures rather than optimally efficient tampering. No tampering budget is imposed: each strategy runs until significance is reached or a structural limit is hit (a group exhausted; no improving move left), with a loop guard at 10× the sample size as a termination backstop only. Tampering budgets (10%, 25%, 50% of the sample) are applied post hoc at summary time.
 
 ### Factor combination and number of conditions
 
@@ -85,7 +85,7 @@ There is no analytic ground truth; the Monte Carlo estimates are the result.
 
 ## Methods and extracted quantities
 
-Each strategy is an iterative greedy procedure: generate a null dataset, test it, and while non-significant apply one tampering operation targeting the data point(s) most opposed to the desired result, then re-test. The analysis is the equal-variance two-sample *t*-test (`var.equal = TRUE`, two-sided, α = .05). From each replication the worker returns `tampers_needed`, `reached_sig` (whether *p* < .05 was actually reached, so no replication is silently dropped), and the final-dataset effect size (`hedges_g`, `bias_mean_diff`). Swapping *entire* conditions is handled analytically (it merely adds ½α to the false-positive rate) rather than simulated.
+Each strategy is an iterative procedure: generate a null dataset, test it, and while a significant result in the intended direction has not been reached, apply one tampering operation targeting the data point(s) most opposed to the desired result, then re-test. The analysis is the equal-variance two-sample *t*-test (`var.equal = TRUE`, two-sided, α = .05); success requires *p* < .05 *and* a positive intervention-minus-control difference. From each replication the worker returns `tampers_needed`, `reached_sig` (whether a significant result in the intended direction was actually reached, so no replication is silently dropped), `hit_guard` (whether the iteration was stopped by the loop guard rather than a structural limit), and the final-dataset effect size (`hedges_g`, `bias_mean_diff`). Swapping *entire* conditions is handled analytically (it merely adds ½α to the false-positive rate) rather than simulated.
 
 ## Performance and Uncertainty
 
@@ -99,7 +99,7 @@ Every summary carries a Monte Carlo standard error: the binomial SE for the neve
 
 ### Number of simulation repetitions
 
-Each condition is replicated `n_iterations` times: 10000 for a full run and 100 for a fast local/development render (auto-selected by the `on_hpc` knob; see *Running on an HPC cluster*). This is adequate for the descriptive comparison intended here.
+Each condition is replicated `n_iterations` times: 10000 for a full run and 100 for a fast local/development render (auto-selected by the `on_hpc` knob; see *Running on an HPC cluster*). K = 10,000 was chosen for the Monte Carlo precision it yields rather than by convention: it bounds the binomial MCSE of any reported proportion at $\sqrt{.5 \times .5 / 10000} = .005$, and the resulting bootstrap MCSEs of the median counts are small fractions of one data point.
 
 ### Non-convergence and missing values
 
@@ -107,7 +107,7 @@ The *t*-test is closed-form. The realistic failure modes are degenerate intermed
 
 ### Interpretation of performance measures *(optional)*
 
-There is no pass/fail criterion; the comparison is relative. A strategy is "cheap" to the extent that its median tamper count — especially its proportion of the sample — is small and its never-significant proportion is low. The expectation is that the proportion of data that must be tampered is small and does not grow with sample size, and that the distribution-preserving strategy (condition swapping) is both effective and the hardest to detect.
+There is no pass/fail criterion; the comparison is relative. A strategy is "cheap" to the extent that its median tamper count — especially its proportion of the sample — is small and its never-significant proportion is low. The expectation is that the proportion of data that must be tampered is small and does not grow with sample size, and that the distribution-preserving strategy (condition swapping) is both effective and likely the hardest to detect by routine statistical checks (a procedural argument; statistical detectability is not examined here).
 
 ## Ethics, optics, and the *p*-hacking / fabrication continuum
 
@@ -216,8 +216,21 @@ worker_packages <- c("dplyr", "tidyr", "tibble", "purrr", "effectsize", "MASS")
 # cannot loop unboundedly. Iterations that hit the guard or a structural limit are
 # recorded as never attaining significance. Tampering budgets (10%, 25%, 50% of the
 # sample) are applied POST HOC in summarise_tampers(), which is possible precisely
-# because the full, unbudgeted tamper counts are recorded.
+# because the full, unbudgeted tamper counts are recorded. Iterations stopped by the
+# guard are additionally flagged (hit_guard) so their frequency can be reported and
+# distinguished from structural limits.
 tamper_loop_guard <- function(n_total) 10L * n_total
+
+# Sign-consistent success ----
+# A two-sided test can also come out significant with the effect in the WRONG direction
+# (intervention < control): initially, in ~alpha/2 of null datasets, or in passing during
+# tampering. A tamperer pushing for a positive effect has not succeeded in those cases, so
+# success requires BOTH p < .05 AND a positive intervention-minus-control difference.
+# Wrong-direction significance therefore does not stop the loop; tampering continues until
+# the intended direction is reached or a structural limit / the loop guard intervenes.
+sig_attained_meandiff <- function(p, ctl, int) {
+  !is.na(p) && p < 0.05 && isTRUE(mean(int) > mean(ctl))
+}
 
 # Display order of the tampering strategies ----
 # Strategies are ordered by their impact: from the strategy that needs the SMALLEST
@@ -255,9 +268,10 @@ hedges_g_fast <- function(ctl, int) {
 
 # bundle a finished (possibly tampered) dataset into the one-row result the summarisers
 # expect. Same columns, same meanings, as summarise_tamper_result() in the reference.
-result_meandiff <- function(ctl, int, tampers_needed, reached_sig) {
+result_meandiff <- function(ctl, int, tampers_needed, reached_sig, hit_guard = FALSE) {
   tibble(tampers_needed = tampers_needed,
          reached_sig    = reached_sig,
+         hit_guard      = hit_guard,
          hedges_g       = hedges_g_fast(ctl, int),
          bias_mean_diff = if (length(ctl) < 1L || length(int) < 1L) NA_real_ else mean(int) - mean(ctl))
 }
@@ -357,6 +371,21 @@ mcse_median <- function(x, n_boot = 1000, seed = 42){
   sd(boot_medians)
 }
 
+# bootstrap MCSE of an arbitrary quantile (used for the 95% PI bounds), with the same
+# RNG hygiene as mcse_median(). A censored bound (Inf) has no estimable MCSE.
+mcse_quantile <- function(x, prob, n_boot = 1000, seed = 42){
+  x <- x[!is.na(x)]
+  n <- length(x)
+  if (n < 2) return(NA_real_)
+  old_seed <- if (exists(".Random.seed", envir = .GlobalEnv)) get(".Random.seed", envir = .GlobalEnv) else NULL
+  set.seed(seed)
+  boot_q <- replicate(n_boot, quantile(x[sample.int(n, n, replace = TRUE)],
+                                       probs = prob, names = FALSE, type = 7))
+  if (!is.null(old_seed)) assign(".Random.seed", old_seed, envir = .GlobalEnv)
+  if (!all(is.finite(boot_q))) return(NA_real_)
+  sd(boot_q)
+}
+
 # Guards and censoring-aware summaries ----
 # Two things can go wrong in a single condition cell and take a whole render with them.
 # (a) A degenerate cell: no iteration reached significance, or the effect size is
@@ -429,11 +458,23 @@ interval_cell <- function(lower, upper, dp = 0){
   paste0("[", fmt_num(lower, dp), ", ", fmt_num(upper, dp), "]")
 }
 
+# interval whose bounds are themselves Monte Carlo estimates: each bound is printed with
+# its own bootstrap MCSE in parentheses. dp is driven by the bounds' MCSEs jointly.
+interval_mcse_cell <- function(lower, upper, lower_mcse, upper_mcse, min_dp = 0, max_dp = 2){
+  dp <- dp_from_mcse(c(lower_mcse, upper_mcse), min_dp = min_dp, max_dp = max_dp)
+  bound <- function(est, mcse) ifelse(is.finite(est) & is.finite(mcse),
+                                      paste0(fmt_num(est, dp), " (", fmt_num(mcse, dp), ")"),
+                                      fmt_num(est, dp))
+  paste0("[", bound(lower, lower_mcse), ", ", bound(upper, upper_mcse), "]")
+}
+
 tampers_note <- paste(
   "Values in parentheses are +/-1 Monte Carlo standard error.",
   "IQR is the 25th-75th percentile and PI the 95% prediction interval (2.5th-97.5th",
   "percentile) of the results across iterations; neither is an MCSE, and both describe",
   "the spread of the simulated studies rather than the precision of the summary.",
+  "The PI bounds are nonetheless themselves estimated with Monte Carlo error; each bound",
+  "is printed with its own bootstrap MCSE in parentheses.",
   "All percentile-based summaries are computed over all iterations, with datasets that",
   "never attained significance (tampering ran to a structural limit without crossing",
   "alpha) ranked above every finite count; 'never' marks a percentile falling among",
@@ -466,7 +507,7 @@ table_tampers <- function(data, caption, extra_cols = NULL){
               `> 50% of N`            = mcse_cell(prop_gt_50, prop_gt_50_mcse, min_dp = 3),
               `Median tampers`        = mcse_cell(median, median_mcse),
               `IQR`                   = interval_cell(iqr_lower, iqr_upper),
-              `95% PI`                = interval_cell(pi_lower, pi_upper),
+              `95% PI`                = interval_mcse_cell(pi_lower, pi_upper, pi_lower_mcse, pi_upper_mcse),
               `Mean (reached only)`   = mcse_cell(mean_reached, mean_reached_mcse),
               `SD (reached only)`     = fmt_num(sd_reached, 2),
               `Median prop. tampered` = mcse_cell(prop_median, prop_median_mcse, min_dp = 3)) |>
@@ -476,6 +517,9 @@ table_tampers <- function(data, caption, extra_cols = NULL){
 }
 
 summarise_tampers <- function(data){
+  # caches written before the hit_guard flag was recorded lack the column; carry NA so
+  # the guard-hit proportion is reported as missing rather than erroring
+  if (!"hit_guard" %in% names(data)) data <- data |> mutate(hit_guard = NA)
   data |>
     # code an iteration that never attained significance as Inf: tampering ran to a
     # structural limit (or the loop guard) without crossing alpha, so its count is
@@ -492,6 +536,10 @@ summarise_tampers <- function(data){
               detection_rate_mcse = mcse_proportion(detection_rate, k),
               proportion_never_sig = 1 - detection_rate,
               proportion_never_sig_mcse = detection_rate_mcse,
+              # proportion of iterations stopped by the 10x-N loop guard rather than a
+              # structural limit; quantifies the claim that guard hits are rare
+              prop_hit_guard = mean(hit_guard),
+              prop_hit_guard_mcse = mcse_proportion(prop_hit_guard, k),
               # --- post hoc tampering budgets: the proportion of datasets needing more
               # than b% of the original sample to be tampered with. Because the full,
               # unbudgeted counts are recorded, any budget can be evaluated at summary
@@ -517,6 +565,8 @@ summarise_tampers <- function(data){
               iqr_upper = q_censored(tampers_censored, 0.75),
               pi_lower  = q_censored(tampers_censored, 0.025),
               pi_upper  = q_censored(tampers_censored, 0.975),
+              pi_lower_mcse = mcse_quantile(tampers_censored, 0.025),
+              pi_upper_mcse = mcse_quantile(tampers_censored, 0.975),
               # --- conditional summaries: over the iterations that DID attain
               # significance. The mean is not estimable over all k when any iteration
               # never attains significance (those counts are unbounded above), so the
@@ -655,7 +705,7 @@ Each simulation records `tampers_needed`: the number of tampering operations app
 
 3. The median refers to an actual case. For an integer count, a mean such as "2.7 tampers" corresponds to no real study, whereas a median of 2 describes a realisable scenario ("half the time, two edits were enough"). Because the substantive claim concerns the realistic effort an individual would expend, the statistic that points at an actual case is the more faithful one.
 
-Note that the central-tendency statistics include the datasets that were significant from the outset and so required zero tampers (the ~5% expected under the null at α = .05). The median therefore answers "starting from null data, how many edits to significance?" rather than "*given* that tampering was needed, how many?". This framing was chosen deliberately because it matches the question of how readily null data can be pushed to significance.
+Note that the central-tendency statistics include the datasets that were significant from the outset — in the intended direction — and so required zero tampers (~2.5% expected under the null at a two-sided α = .05, since success is sign-consistent: a dataset initially significant in the *wrong* direction is not a success and must be tampered onward). The median therefore answers "starting from null data, how many edits to significance?" rather than "*given* that tampering was needed, how many?". This framing was chosen deliberately because it matches the question of how readily null data can be pushed to significance.
 
 ## Monte Carlo standard errors
 
@@ -696,12 +746,12 @@ run_iterative_dropping_study <- function(n_per_condition,
   int <- rnorm(n_per_condition, mean_intervention, sd_intervention)
 
   p <- p_ttest(ctl, int)
-  if (!is.na(p) && p < 0.05) return(result_meandiff(ctl, int, 0L, TRUE))
+  if (sig_attained_meandiff(p, ctl, int)) return(result_meandiff(ctl, int, 0L, TRUE))
 
   guard <- tamper_loop_guard(2L * n_per_condition)
   drops <- 0L
 
-  while (!is.na(p) && p >= 0.05 && drops < guard) {
+  while (!is.na(p) && !sig_attained_meandiff(p, ctl, int) && drops < guard) {
     if (length(ctl) < 2L || length(int) < 2L) break
     zc <- (ctl - mean(ctl))/sd(ctl)
     zi <- (int - mean(int))/sd(int)
@@ -713,7 +763,8 @@ run_iterative_dropping_study <- function(n_per_condition,
     p <- p_ttest(ctl, int)
   }
 
-  result_meandiff(ctl, int, drops, !is.na(p) && p < 0.05)
+  reached <- sig_attained_meandiff(p, ctl, int)
+  result_meandiff(ctl, int, drops, reached, hit_guard = !reached && drops >= guard)
 }
 
 ```
@@ -819,12 +870,12 @@ run_iterative_condition_swap_study <- function(n_per_condition,
   int <- rnorm(n_per_condition, mean_intervention, sd_intervention)
 
   p <- p_ttest(ctl, int)
-  if (!is.na(p) && p < 0.05) return(result_meandiff(ctl, int, 0L, TRUE))
+  if (sig_attained_meandiff(p, ctl, int)) return(result_meandiff(ctl, int, 0L, TRUE))
 
   guard <- tamper_loop_guard(2L * n_per_condition)
   swaps <- 0L
 
-  while (!is.na(p) && p >= 0.05 && swaps < guard) {
+  while (!is.na(p) && !sig_attained_meandiff(p, ctl, int) && swaps < guard) {
     # alternate direction so group sizes stay balanced over pairs of swaps
     if (swaps %% 2L == 0L) {
       if (length(int) < 1L) break
@@ -839,7 +890,8 @@ run_iterative_condition_swap_study <- function(n_per_condition,
     p <- p_ttest(ctl, int)
   }
 
-  result_meandiff(ctl, int, swaps, !is.na(p) && p < 0.05)
+  reached <- sig_attained_meandiff(p, ctl, int)
+  result_meandiff(ctl, int, swaps, reached, hit_guard = !reached && swaps >= guard)
 }
 
 ```
@@ -950,12 +1002,12 @@ run_iterative_duplication_study <- function(n_per_condition,
   pool_int <- int[order(int, decreasing = TRUE)][seq_len(n_pool)]
 
   p <- p_ttest(ctl, int)
-  if (!is.na(p) && p < 0.05) return(result_meandiff(ctl, int, 0L, TRUE))
+  if (sig_attained_meandiff(p, ctl, int)) return(result_meandiff(ctl, int, 0L, TRUE))
 
   guard <- tamper_loop_guard(2L * n_per_condition)
   dups <- 0L
 
-  while (!is.na(p) && p >= 0.05 && dups < guard) {
+  while (!is.na(p) && !sig_attained_meandiff(p, ctl, int) && dups < guard) {
     # same two sample.int() draws per round, in the same order, as the reference's
     # two sample_n(pool, 1) calls
     ctl <- c(ctl, pool_ctl[sample.int(n_pool, 1L)])
@@ -964,7 +1016,8 @@ run_iterative_duplication_study <- function(n_per_condition,
     p <- p_ttest(ctl, int)
   }
 
-  result_meandiff(ctl, int, dups, !is.na(p) && p < 0.05)
+  reached <- sig_attained_meandiff(p, ctl, int)
+  result_meandiff(ctl, int, dups, reached, hit_guard = !reached && dups >= guard)
 }
 
 ```
@@ -1089,12 +1142,12 @@ run_iterative_fabrication_study <- function(n_per_condition,
   int <- rnorm(n_per_condition, mean_intervention, sd_intervention)
 
   p <- p_ttest(ctl, int)
-  if (!is.na(p) && p < 0.05) return(result_meandiff(ctl, int, 0L, TRUE))
+  if (sig_attained_meandiff(p, ctl, int)) return(result_meandiff(ctl, int, 0L, TRUE))
 
   guard <- tamper_loop_guard(2L * n_per_condition)
   adds <- 0L
 
-  while (!is.na(p) && p >= 0.05 && adds < guard) {
+  while (!is.na(p) && !sig_attained_meandiff(p, ctl, int) && adds < guard) {
     # control point drawn first, then intervention: the same rnorm() order as the reference
     ctl <- c(ctl, rnorm(1, fabricated_control_mean, fabricated_control_sd))
     int <- c(int, rnorm(1, fabricated_intervention_mean, fabricated_intervention_sd))
@@ -1102,7 +1155,8 @@ run_iterative_fabrication_study <- function(n_per_condition,
     p <- p_ttest(ctl, int)
   }
 
-  result_meandiff(ctl, int, adds, !is.na(p) && p < 0.05)
+  reached <- sig_attained_meandiff(p, ctl, int)
+  result_meandiff(ctl, int, adds, reached, hit_guard = !reached && adds >= guard)
 }
 
 ```
@@ -1210,12 +1264,12 @@ run_iterative_replacement_study <- function(n_per_condition,
   int <- rnorm(n_per_condition, mean_intervention, sd_intervention)
 
   p <- p_ttest(ctl, int)
-  if (!is.na(p) && p < 0.05) return(result_meandiff(ctl, int, 0L, TRUE))
+  if (sig_attained_meandiff(p, ctl, int)) return(result_meandiff(ctl, int, 0L, TRUE))
 
   guard <- tamper_loop_guard(2L * n_per_condition)
   repl <- 0L
 
-  while (!is.na(p) && p >= 0.05 && repl < guard) {
+  while (!is.na(p) && !sig_attained_meandiff(p, ctl, int) && repl < guard) {
     if (length(ctl) < 2L || length(int) < 2L) break
     ii <- which.min(int)   # most hostile intervention case
     ic <- which.max(ctl)   # most hostile control case
@@ -1237,7 +1291,8 @@ run_iterative_replacement_study <- function(n_per_condition,
     repl <- repl + 1L
   }
 
-  result_meandiff(ctl, int, repl, !is.na(p) && p < 0.05)
+  reached <- sig_attained_meandiff(p, ctl, int)
+  result_meandiff(ctl, int, repl, reached, hit_guard = !reached && repl >= guard)
 }
 
 ```
@@ -1487,7 +1542,7 @@ To run on Everything: request a node and launch RStudio Server inside the alloca
 The substantive results are the per-strategy tables and the *Combined tables and plots* section; this discussion summarises how they should be read against the aims. Two patterns are the point and can be checked against the rendered figures:
 
 - Effort is small and roughly scale-invariant in proportional terms. Although the absolute tamper count grows with sample size, the *proportion* of the sample that must be altered to reach significance is small and does not increase with N — manufacturing a false positive is no harder, proportionally, in a large study than a small one.
-- The distribution-preserving strategy is both effective and stealthy. Condition swapping leaves every univariate distribution untouched, so it is the hardest to detect by routine checks, yet reaches significance with few operations. Strategies that add high-leverage points (fabrication, replacement) are the most efficient per operation but the most visible. Because the truth is zero, the median Hedges' *g* at the point significance is reached sits near the critical effect size for the given N — just large enough to clear the threshold and no larger, as the greedy procedure stops on first crossing.
+- The distribution-preserving strategy is both effective and likely stealthy. Condition swapping alters no recorded value, only group labels, so it should be the hardest to detect by routine univariate checks (a procedural argument, not a measured detectability result), yet reaches significance with few operations. Strategies that add high-leverage points (fabrication, replacement) are the most efficient per operation but the most visible. Because the truth is zero, the median Hedges' *g* at the point significance is reached sits near the critical effect size for the given N — just large enough to clear the threshold and no larger, as the greedy procedure stops on first crossing.
 
 ## Conclusions with regard to the aims
 

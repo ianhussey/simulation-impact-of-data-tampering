@@ -45,7 +45,7 @@ The motivating context is the continuum between questionable research practices 
 
 ## Prior related work
 
-There is no closed-form benchmark for the minimal number of tampered points needed to manufacture significance, so the study is descriptive rather than a calibration exercise. It connects to work on the fragility of findings to a few influential observations (the `dfstat`/`dfbeta` tradition; see also Spiess et al., 2024 *[citation to be completed]*) and to "how to cheat" framings such as Chambers' (2017) "dirty dozen". The correlation analogue of condition swapping — *re-pairing*, which exchanges *y*-values between cases — has no clean mean-difference counterpart and is the most forensically interesting strategy here, because it preserves both marginal distributions exactly.
+There is no trivial, well-established closed-form benchmark for the minimal number of tampered points needed to manufacture significance, and none was attempted here, so the study is descriptive rather than a calibration exercise. It connects to work on the fragility of findings to a few influential observations (the `dfstat`/`dfbeta` tradition; see also Spiess et al., 2024 *[citation to be completed]*) and to "how to cheat" framings such as Chambers' (2017) "dirty dozen". The correlation analogue of condition swapping — *re-pairing*, which exchanges *y*-values between cases — has no clean mean-difference counterpart and is the most forensically interesting strategy here, because it preserves both marginal distributions exactly.
 
 ## Aims
 
@@ -70,7 +70,7 @@ Two factors are varied: the tampering strategy and the total sample size `n`.
 
 - `n` (total) ∈ {20, 50, 100, 150, 200, 250, 300, 350, 400}, matching the total Ns of the *t*-test file so sample sizes are comparable across settings (`n_per_condition = n/2` is recorded so the shared summarising/plotting helpers apply unchanged).
 - Tampering strategy ∈ {dropping, re-pairing (value swapping), duplication, fabrication, replacement}.
-- Held constant: ρ = 0 with unit variances (the null); α = .05, two-sided; and the greedy "most-helpful-first" rule. All strategies push toward a positive correlation by convention, so the signed *r* (which, since the truth is 0, is the bias) is reported directly. No tampering budget is imposed: each strategy runs until significance is reached or a structural limit is hit (too few pairs left; no improving re-pairing), with a loop guard at 10× the sample size as a termination backstop only. Tampering budgets (10%, 25%, 50% of the sample) are applied post hoc at summary time.
+- Held constant: ρ = 0 with unit variances (the null); α = .05, two-sided, with success defined sign-consistently — an iteration counts as significant only when *p* < .05 *and* *r* > 0, so wrong-direction significance (initial or in passing) does not stop tampering; and a "most-hostile-first" targeting rule: each step targets the case(s) most opposed to a positive correlation. How that target is chosen differs by strategy — dropping, re-pairing, and replacement target the most discordant case (most negative centred cross-product), while duplication samples at random from the most concordant 10% — so the effort estimates characterise these specific, deliberately simple procedures rather than optimally efficient tampering. All strategies push toward a positive correlation by convention, so the signed *r* (which, since the truth is 0, is the bias) is reported directly. No tampering budget is imposed: each strategy runs until significance is reached or a structural limit is hit (too few pairs left; no improving re-pairing), with a loop guard at 10× the sample size as a termination backstop only. Tampering budgets (10%, 25%, 50% of the sample) are applied post hoc at summary time.
 
 ### Factor combination and number of conditions
 
@@ -85,7 +85,7 @@ There is no analytic ground truth; the Monte Carlo estimates are the result.
 
 ## Methods and extracted quantities
 
-Each strategy is an iterative greedy procedure: generate a null dataset, test it, and while non-significant apply one tampering operation targeting the case(s) most opposed to a positive correlation, then re-test. The analysis is the Pearson correlation test (computed algebraically for speed in the inner loop; identical to `cor.test`). From each replication the worker returns `tampers_needed`, `reached_sig`, and the final-dataset effect size (`pearson_r`, `fisher_z`).
+Each strategy is an iterative procedure: generate a null dataset, test it, and while a significant positive correlation has not been reached, apply one tampering operation targeting the case(s) most opposed to a positive correlation, then re-test. The analysis is the Pearson correlation test (computed algebraically for speed in the inner loop; identical to `cor.test`); success requires *p* < .05 *and* *r* > 0. From each replication the worker returns `tampers_needed`, `reached_sig` (whether a significant positive correlation was actually reached), `hit_guard` (whether the iteration was stopped by the loop guard rather than a structural limit), and the final-dataset effect size (`pearson_r`, `fisher_z`).
 
 ## Performance and Uncertainty
 
@@ -99,7 +99,7 @@ Every summary carries a Monte Carlo standard error: the binomial SE for the neve
 
 ### Number of simulation repetitions
 
-Each condition is replicated `n_iterations` times: 10000 for a full run and 100 for a fast local/development render (auto-selected by the `on_hpc` knob; see *Running on an HPC cluster*).
+Each condition is replicated `n_iterations` times: 10000 for a full run and 100 for a fast local/development render (auto-selected by the `on_hpc` knob; see *Running on an HPC cluster*). K = 10,000 was chosen for the Monte Carlo precision it yields rather than by convention: it bounds the binomial MCSE of any reported proportion at $\sqrt{.5 \times .5 / 10000} = .005$, and the resulting bootstrap MCSEs of the median counts are small fractions of one data point.
 
 ### Non-convergence and missing values
 
@@ -107,7 +107,7 @@ The correlation test is closed-form. The realistic failure modes are degenerate 
 
 ### Interpretation of performance measures *(optional)*
 
-There is no pass/fail criterion; the comparison is relative. A strategy is "cheap" to the extent that its median tamper count — especially its proportion of the sample — is small and its never-significant proportion is low. The expectation is that re-pairing, which preserves both marginals, is both effective and the hardest to detect, while high-leverage fabrication/replacement are the most efficient per operation but the most visible.
+There is no pass/fail criterion; the comparison is relative. A strategy is "cheap" to the extent that its median tamper count — especially its proportion of the sample — is small and its never-significant proportion is low. The expectation is that re-pairing, which preserves both marginals, is both effective and likely the hardest to detect by routine univariate checks (a procedural argument; statistical detectability is not examined here), while high-leverage fabrication/replacement are the most efficient per operation but the most visible.
 
 ## Ethics, optics, and the *p*-hacking / fabrication continuum
 
@@ -212,7 +212,9 @@ worker_packages <- c("dplyr", "tidyr", "tibble", "purrr", "effectsize", "MASS")
 # cannot loop unboundedly. Iterations that hit the guard or a structural limit are
 # recorded as never attaining significance. Tampering budgets (10%, 25%, 50% of the
 # sample) are applied POST HOC in summarise_tampers(), which is possible precisely
-# because the full, unbudgeted tamper counts are recorded.
+# because the full, unbudgeted tamper counts are recorded. Iterations stopped by the
+# guard are additionally flagged (hit_guard) so their frequency can be reported and
+# distinguished from structural limits.
 tamper_loop_guard <- function(n_total) 10L * n_total
 
 # Display order of the tampering strategies ----
@@ -256,6 +258,21 @@ mcse_median <- function(x, n_boot = 1000, seed = 42){
   # a censored median (Inf) has no estimable MCSE
   if (!all(is.finite(boot_medians))) return(NA_real_)
   sd(boot_medians)
+}
+
+# bootstrap MCSE of an arbitrary quantile (used for the 95% PI bounds), with the same
+# RNG hygiene as mcse_median(). A censored bound (Inf) has no estimable MCSE.
+mcse_quantile <- function(x, prob, n_boot = 1000, seed = 42){
+  x <- x[!is.na(x)]
+  n <- length(x)
+  if (n < 2) return(NA_real_)
+  old_seed <- if (exists(".Random.seed", envir = .GlobalEnv)) get(".Random.seed", envir = .GlobalEnv) else NULL
+  set.seed(seed)
+  boot_q <- replicate(n_boot, quantile(x[sample.int(n, n, replace = TRUE)],
+                                       probs = prob, names = FALSE, type = 7))
+  if (!is.null(old_seed)) assign(".Random.seed", old_seed, envir = .GlobalEnv)
+  if (!all(is.finite(boot_q))) return(NA_real_)
+  sd(boot_q)
 }
 
 # Guards and censoring-aware summaries ----
@@ -330,11 +347,23 @@ interval_cell <- function(lower, upper, dp = 0){
   paste0("[", fmt_num(lower, dp), ", ", fmt_num(upper, dp), "]")
 }
 
+# interval whose bounds are themselves Monte Carlo estimates: each bound is printed with
+# its own bootstrap MCSE in parentheses. dp is driven by the bounds' MCSEs jointly.
+interval_mcse_cell <- function(lower, upper, lower_mcse, upper_mcse, min_dp = 0, max_dp = 2){
+  dp <- dp_from_mcse(c(lower_mcse, upper_mcse), min_dp = min_dp, max_dp = max_dp)
+  bound <- function(est, mcse) ifelse(is.finite(est) & is.finite(mcse),
+                                      paste0(fmt_num(est, dp), " (", fmt_num(mcse, dp), ")"),
+                                      fmt_num(est, dp))
+  paste0("[", bound(lower, lower_mcse), ", ", bound(upper, upper_mcse), "]")
+}
+
 tampers_note <- paste(
   "Values in parentheses are +/-1 Monte Carlo standard error.",
   "IQR is the 25th-75th percentile and PI the 95% prediction interval (2.5th-97.5th",
   "percentile) of the results across iterations; neither is an MCSE, and both describe",
   "the spread of the simulated studies rather than the precision of the summary.",
+  "The PI bounds are nonetheless themselves estimated with Monte Carlo error; each bound",
+  "is printed with its own bootstrap MCSE in parentheses.",
   "All percentile-based summaries are computed over all iterations, with datasets that",
   "never attained significance (tampering ran to a structural limit without crossing",
   "alpha) ranked above every finite count; 'never' marks a percentile falling among",
@@ -367,7 +396,7 @@ table_tampers <- function(data, caption, extra_cols = NULL){
               `> 50% of N`            = mcse_cell(prop_gt_50, prop_gt_50_mcse, min_dp = 3),
               `Median tampers`        = mcse_cell(median, median_mcse),
               `IQR`                   = interval_cell(iqr_lower, iqr_upper),
-              `95% PI`                = interval_cell(pi_lower, pi_upper),
+              `95% PI`                = interval_mcse_cell(pi_lower, pi_upper, pi_lower_mcse, pi_upper_mcse),
               `Mean (reached only)`   = mcse_cell(mean_reached, mean_reached_mcse),
               `SD (reached only)`     = fmt_num(sd_reached, 2),
               `Median prop. tampered` = mcse_cell(prop_median, prop_median_mcse, min_dp = 3)) |>
@@ -377,6 +406,9 @@ table_tampers <- function(data, caption, extra_cols = NULL){
 }
 
 summarise_tampers <- function(data){
+  # caches written before the hit_guard flag was recorded lack the column; carry NA so
+  # the guard-hit proportion is reported as missing rather than erroring
+  if (!"hit_guard" %in% names(data)) data <- data |> mutate(hit_guard = NA)
   data |>
     # code an iteration that never attained significance as Inf: tampering ran to a
     # structural limit (or the loop guard) without crossing alpha, so its count is
@@ -393,6 +425,10 @@ summarise_tampers <- function(data){
               detection_rate_mcse = mcse_proportion(detection_rate, k),
               proportion_never_sig = 1 - detection_rate,
               proportion_never_sig_mcse = detection_rate_mcse,
+              # proportion of iterations stopped by the 10x-N loop guard rather than a
+              # structural limit; quantifies the claim that guard hits are rare
+              prop_hit_guard = mean(hit_guard),
+              prop_hit_guard_mcse = mcse_proportion(prop_hit_guard, k),
               # --- post hoc tampering budgets: the proportion of datasets needing more
               # than b% of the original sample to be tampered with. Because the full,
               # unbudgeted counts are recorded, any budget can be evaluated at summary
@@ -418,6 +454,8 @@ summarise_tampers <- function(data){
               iqr_upper = q_censored(tampers_censored, 0.75),
               pi_lower  = q_censored(tampers_censored, 0.025),
               pi_upper  = q_censored(tampers_censored, 0.975),
+              pi_lower_mcse = mcse_quantile(tampers_censored, 0.025),
+              pi_upper_mcse = mcse_quantile(tampers_censored, 0.975),
               # --- conditional summaries: over the iterations that DID attain
               # significance. The mean is not estimable over all k when any iteration
               # never attains significance (those counts are unbounded above), so the
@@ -505,7 +543,7 @@ Each simulation records `tampers_needed`: the number of tampering operations app
 
 3. The median refers to an actual case. For an integer count, a mean such as "2.7 tampers" corresponds to no real study, whereas a median of 2 describes a realisable scenario ("half the time, two edits were enough"). Because the substantive claim concerns the realistic effort an individual would expend, the statistic that points at an actual case is the more faithful one.
 
-Note that the central-tendency statistics include the datasets that were significant from the outset and so required zero tampers (the ~5% expected under the null at α = .05). The median therefore answers "starting from null data, how many edits to significance?" rather than "*given* that tampering was needed, how many?". This framing was chosen deliberately because it matches the question of how readily null data can be pushed to significance.
+Note that the central-tendency statistics include the datasets that were significant from the outset — in the intended direction — and so required zero tampers (~2.5% expected under the null at a two-sided α = .05, since success is sign-consistent: a dataset initially significant in the *wrong* direction is not a success and must be tampered onward). The median therefore answers "starting from null data, how many edits to significance?" rather than "*given* that tampering was needed, how many?". This framing was chosen deliberately because it matches the question of how readily null data can be pushed to significance.
 
 ## Monte Carlo standard errors
 
@@ -548,11 +586,22 @@ pr_cor <- function(x, y) {
   c(p = 2 * pt(-abs(r * sqrt((n - 2)/(1 - r^2))), df = n - 2), r = r)
 }
 
+# Sign-consistent success ----
+# A two-sided test can also come out significant with a NEGATIVE r: initially, in
+# ~alpha/2 of null datasets, or in passing during tampering. A tamperer pushing for a
+# positive correlation has not succeeded in those cases, so success requires BOTH
+# p < .05 AND r > 0. Wrong-direction significance therefore does not stop the loop.
+sig_attained_cor <- function(pr) {
+  p <- unname(pr["p"]); r <- unname(pr["r"])
+  !is.na(p) && p < 0.05 && isTRUE(r > 0)
+}
+
 # bundle a finished dataset into the one-row result the summarisers expect
-result_corr <- function(x, y, tampers_needed, reached_sig) {
+result_corr <- function(x, y, tampers_needed, reached_sig, hit_guard = FALSE) {
   r <- unname(pr_cor(x, y)["r"])
   tibble(tampers_needed = tampers_needed,
          reached_sig    = reached_sig,
+         hit_guard      = hit_guard,
          pearson_r      = r,
          fisher_z       = if (is.na(r)) NA_real_ else atanh(pmin(pmax(r, -0.999999), 0.999999)))
 }
@@ -635,19 +684,20 @@ Each round, drop the single most discordant remaining case (the most negative ce
 
 run_iterative_correlation_dropping_study <- function(n) {
   d <- generate_xy(n); x <- d$x; y <- d$y
-  pr <- pr_cor(x, y); p <- unname(pr["p"])
-  if (!is.na(p) && p < 0.05) return(result_corr(x, y, 0L, TRUE))
+  pr <- pr_cor(x, y)
+  if (sig_attained_cor(pr)) return(result_corr(x, y, 0L, TRUE))
 
   guard <- tamper_loop_guard(n); drops <- 0L
 
-  while (!is.na(p) && p >= 0.05 && drops < guard) {
+  while (!is.na(pr[["p"]]) && !sig_attained_cor(pr) && drops < guard) {
     if (length(x) < 4L) break # keep enough points for the test
     i <- which.min((x - mean(x)) * (y - mean(y))) # most discordant case
     x <- x[-i]; y <- y[-i]
     drops <- drops + 1L
-    p <- unname(pr_cor(x, y)["p"])
+    pr <- pr_cor(x, y)
   }
-  result_corr(x, y, drops, !is.na(p) && p < 0.05)
+  reached <- sig_attained_cor(pr)
+  result_corr(x, y, drops, reached, hit_guard = !reached && drops >= guard)
 }
 
 ```
@@ -734,12 +784,12 @@ This is the correlation analogue of condition swapping. With no condition label 
 
 run_iterative_correlation_repairing_study <- function(n) {
   d <- generate_xy(n); x <- d$x; y <- d$y
-  p <- unname(pr_cor(x, y)["p"])
-  if (!is.na(p) && p < 0.05) return(result_corr(x, y, 0L, TRUE))
+  pr <- pr_cor(x, y)
+  if (sig_attained_cor(pr)) return(result_corr(x, y, 0L, TRUE))
 
   guard <- tamper_loop_guard(n); swaps <- 0L
 
-  while (!is.na(p) && p >= 0.05 && swaps < guard) {
+  while (!is.na(pr[["p"]]) && !sig_attained_cor(pr) && swaps < guard) {
     # give the most discordant case the y-value whose rank matches its own x-rank: the
     # value it "should" hold under a perfect monotone pairing. Only the pairing changes,
     # so both marginal distributions are preserved exactly.
@@ -751,9 +801,10 @@ run_iterative_correlation_repairing_study <- function(n) {
     if (unname(pr_cor(x, y_try)["r"]) <= unname(pr_cor(x, y)["r"])) break # no improving swap
     y <- y_try
     swaps <- swaps + 2L                              # two cases have their y-value altered
-    p <- unname(pr_cor(x, y)["p"])
+    pr <- pr_cor(x, y)
   }
-  result_corr(x, y, swaps, !is.na(p) && p < 0.05)
+  reached <- sig_attained_cor(pr)
+  result_corr(x, y, swaps, reached, hit_guard = !reached && swaps >= guard)
 }
 
 ```
@@ -843,18 +894,19 @@ run_iterative_correlation_duplication_study <- function(n, proportion) {
   idx <- order(cross, decreasing = TRUE)[seq_len(n_pool)]
   pool_x <- x[idx]; pool_y <- y[idx]
 
-  p <- unname(pr_cor(x, y)["p"])
-  if (!is.na(p) && p < 0.05) return(result_corr(x, y, 0L, TRUE))
+  pr <- pr_cor(x, y)
+  if (sig_attained_cor(pr)) return(result_corr(x, y, 0L, TRUE))
 
   guard <- tamper_loop_guard(n); dups <- 0L
 
-  while (!is.na(p) && p >= 0.05 && dups < guard) {
+  while (!is.na(pr[["p"]]) && !sig_attained_cor(pr) && dups < guard) {
     k <- sample.int(n_pool, 1L)      # same single draw per round as sample_n(pool, 1)
     x <- c(x, pool_x[k]); y <- c(y, pool_y[k])
     dups <- dups + 1L
-    p <- unname(pr_cor(x, y)["p"])
+    pr <- pr_cor(x, y)
   }
-  result_corr(x, y, dups, !is.na(p) && p < 0.05)
+  reached <- sig_attained_cor(pr)
+  result_corr(x, y, dups, reached, hit_guard = !reached && dups >= guard)
 }
 
 ```
@@ -938,12 +990,12 @@ Each round adds a fabricated, high-leverage concordant pair — one point near $
 
 run_iterative_correlation_fabrication_study <- function(n, fabricated_magnitude, fabricated_sd) {
   d <- generate_xy(n); x <- d$x; y <- d$y
-  p <- unname(pr_cor(x, y)["p"])
-  if (!is.na(p) && p < 0.05) return(result_corr(x, y, 0L, TRUE))
+  pr <- pr_cor(x, y)
+  if (sig_attained_cor(pr)) return(result_corr(x, y, 0L, TRUE))
 
   guard <- tamper_loop_guard(n); adds <- 0L
 
-  while (!is.na(p) && p >= 0.05 && adds < guard) {
+  while (!is.na(pr[["p"]]) && !sig_attained_cor(pr) && adds < guard) {
     # a symmetric high-leverage concordant pair; the four rnorm() draws are made in the
     # same order as the reference (positive x, positive y, negative x, negative y)
     px <- rnorm(1, fabricated_magnitude, fabricated_sd)
@@ -952,9 +1004,10 @@ run_iterative_correlation_fabrication_study <- function(n, fabricated_magnitude,
     ny <- rnorm(1, -fabricated_magnitude, fabricated_sd)
     x <- c(x, px, nx); y <- c(y, py, ny)
     adds <- adds + 2L
-    p <- unname(pr_cor(x, y)["p"])
+    pr <- pr_cor(x, y)
   }
-  result_corr(x, y, adds, !is.na(p) && p < 0.05)
+  reached <- sig_attained_cor(pr)
+  result_corr(x, y, adds, reached, hit_guard = !reached && adds >= guard)
 }
 
 ```
@@ -1040,20 +1093,21 @@ Each round identifies the most discordant existing case and overwrites its *y* w
 
 run_iterative_correlation_replacement_study <- function(n, fabricated_magnitude, fabricated_sd) {
   d <- generate_xy(n); x <- d$x; y <- d$y
-  p <- unname(pr_cor(x, y)["p"])
-  if (!is.na(p) && p < 0.05) return(result_corr(x, y, 0L, TRUE))
+  pr <- pr_cor(x, y)
+  if (sig_attained_cor(pr)) return(result_corr(x, y, 0L, TRUE))
 
   guard <- tamper_loop_guard(n); repl <- 0L
 
-  while (!is.na(p) && p >= 0.05 && repl < guard) {
+  while (!is.na(pr[["p"]]) && !sig_attained_cor(pr) && repl < guard) {
     i <- which.min((x - mean(x)) * (y - mean(y)))  # most discordant case
     x_sign <- sign(x[i] - mean(x))                 # make its replacement concordant with its own x
     if (x_sign == 0) x_sign <- 1
     y[i] <- rnorm(1, fabricated_magnitude * x_sign, fabricated_sd)
     repl <- repl + 1L
-    p <- unname(pr_cor(x, y)["p"])
+    pr <- pr_cor(x, y)
   }
-  result_corr(x, y, repl, !is.na(p) && p < 0.05)
+  reached <- sig_attained_cor(pr)
+  result_corr(x, y, repl, reached, hit_guard = !reached && repl >= guard)
 }
 
 ```
@@ -1286,7 +1340,7 @@ To run on Everything: request a node and launch RStudio Server inside the alloca
 The substantive results are the per-strategy tables and the *Combined tables and plots* section; this discussion summarises how they should be read against the aims. Two patterns are the point and can be checked against the rendered figures:
 
 - Effort is small and roughly scale-invariant in proportional terms. Although the absolute tamper count grows with sample size, the *proportion* of the sample that must be altered to reach a significant correlation is small and does not increase with N.
-- Re-pairing is both effective and stealthy. Because it only exchanges *y*-values between cases, both marginal distributions are preserved exactly, so it is invisible to univariate checks, yet it reaches significance in a handful of swaps. High-leverage fabrication and replacement are the most efficient per operation but produce visible leverage outliers in a scatterplot. Because the truth is ρ = 0, the median Pearson *r* at the point significance is reached sits near the critical *r* for the given N — just large enough to clear the threshold, as the greedy procedure stops on first crossing.
+- Re-pairing is both effective and likely stealthy. Because it only exchanges *y*-values between cases, both marginal distributions are preserved exactly, so it should be invisible to univariate checks (a procedural argument, not a measured detectability result), yet it reaches significance in a handful of swaps. High-leverage fabrication and replacement are the most efficient per operation but produce visible leverage outliers in a scatterplot. Because the truth is ρ = 0, the median Pearson *r* at the point significance is reached sits near the critical *r* for the given N — just large enough to clear the threshold, as the greedy procedure stops on first crossing.
 
 ## Conclusions with regard to the aims
 
